@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:cabal-add"
+
+    - path: "./exe/Main.hs"
+      component: "cabal-add:exe:cabal-add"
