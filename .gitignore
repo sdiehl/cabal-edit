@@ -1,0 +1,11 @@
+.stack-work/
+*.sw[pon]
+*.prof
+*.prof.html
+*~
+*.hi
+*.o
+.ghc.environment.*
+dist*/
+TAGS
+dist-newstyle
