@@ -10,15 +10,49 @@ command line.
 * `cabal-edit upgrade`
 * `cabal-edit remove`
 
-For example to setup a new 
+For example to setup a new project one often wants to add common dependencies
+like `text` and `aeson`. We can use `cabal-edit` to automatically append these
+to our dependency list and deduce the latest versions from Hackage.
 
 ```bash
 $ cabal init --lib --cabal-version=3.0    
 
 $ cabal-edit add aeson                
 Adding dependency: aeson ^>=1.5 to sample.cabal
+
 $ sample cabal-edit add text 
 Adding dependency: text ^>=1.2 to sample.cabal
+```
+
+If we want to depend on a specific version of `aeson`, we can pass this
+explicitly as an argument.
+
+```bash
+$ cabal-edit add aeson==1.4
+```
+
+The Hackage database can be queried from the command line to search for all
+available versions to use with the `list` command.
+
+```bash
+$ cabal-edit list filepath
+1.0
+1.1.0.0
+1.1.0.1
+1.1.0.2
+1.1.0.3
+1.1.0.4
+1.2.0.0
+1.2.0.1
+1.3.0.0
+1.3.0.1
+1.3.0.2
+1.4.0.0
+1.4.1.0
+1.4.1.1
+1.4.1.2
+1.4.2
+1.4.2.1
 ```
 
 You may wish to then run [cabal-fmt] on the outputted file to canonicalise it.
