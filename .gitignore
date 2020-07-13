@@ -9,3 +9,4 @@
 dist*/
 TAGS
 dist-newstyle
+.cabal-cache.db

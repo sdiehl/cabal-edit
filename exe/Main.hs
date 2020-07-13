@@ -19,6 +19,7 @@ import qualified Distribution.Hackage.DB.Unparsed as U
 import Distribution.PackageDescription.Parsec
 import Distribution.PackageDescription.PrettyPrint
 import Distribution.Parsec
+import Distribution.Pretty
 import Distribution.Types.BuildInfo
 import Distribution.Types.CondTree
 import Distribution.Types.Dependency
@@ -34,6 +35,7 @@ import Options.Applicative
 import System.Directory
 import System.Exit
 import System.FilePath.Glob
+import System.FilePath.Posix
 
 -------------------------------------------------------------------------------
 -- Dependency Addition
@@ -62,7 +64,7 @@ majorVersion = alterVersion go
     go [a, b] = [a, b]
     go [a] = [a]
     go [] = []
-    go _ = error "Non-PVP versioning scheme. Bad programmer, bad."
+    go _ = error "Non-PVP versioning scheme in Hackage metadata. Should never happen."
 
 add :: Dependency -> FilePath -> IO ()
 add dep cabalFile = do
@@ -73,68 +75,56 @@ add dep cabalFile = do
     Nothing -> die $ "No such named: " ++ show pk
     Just vers -> pure (last (sort vers))
   let dependency = Dependency pk (majorBoundVersion (majorVersion ver)) (Set.singleton defaultLibName)
-  putStrLn $ "Adding dependency: " ++ show ver
-  --print dependency
+  putStrLn $ "Adding dependency: " ++ show ver ++ " to " ++ show cabalFile
   let desc' = addDep dependency desc
-  --pPrint desc'
   writeGenericPackageDescription cabalFile desc'
-
-cacheDb :: FilePath
-cacheDb = ".cabal-cache.db"
 
 cacheDeps :: IO (Map PackageName [Version])
 cacheDeps = do
-  cacheExists <- doesFileExist cacheDb
+  cache <- cacheDb
+  cacheExists <- doesFileExist cache
   if cacheExists
     then do
-      dbContents <- BS.readFile cacheDb
+      dbContents <- BS.readFile cache
       case decode dbContents of
         Left _ -> die "Corrupted cabal cache file."
         Right db -> pure db
     else do
       putStrLn "No cache file found, building from HackageDB."
-      hdb <- hackageTarball
-      now <- getCurrentTime
-      tdb <- U.readTarball (Just now) hdb
-      vers <- forM (Map.toList tdb) $ \(pk, pdata) -> do
-        let verMap = Map.keys (P.parsePackageData pk pdata)
-        pure (pk, verMap)
-      let db = Map.fromList vers
-      BS.writeFile cacheDb (encode db)
-      pure db
+      buildCache
+
+buildCache :: IO (Map PackageName [Version])
+buildCache = do
+  cache <- cacheDb
+  hdb <- hackageTarball
+  now <- getCurrentTime
+  tdb <- U.readTarball (Just now) hdb
+  vers <- forM (Map.toList tdb) $ \(pk, pdata) -> do
+    let verMap = Map.keys (P.parsePackageData pk pdata)
+    pure (pk, verMap)
+  let db = Map.fromList vers
+  BS.writeFile cache (encode db)
+  pure db
 
 completerPacks :: IO [String]
 completerPacks = do
   db <- cacheDeps
   pure (fmap unPackageName $ Map.keys db)
 
-instance Store PackageName
-
-instance Store ShortText
-
-instance Store Version
-
 -------------------------------------------------------------------------------
--- Options Parsing
+-- Comamnds
 -------------------------------------------------------------------------------
-
-data Cmd
-  = Add String
-  | List String
-  | Upgrade String
-  | Remove String
-  deriving (Eq, Show)
-
-addParse :: [String] -> Parser Cmd
-addParse localPackages = Add <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
-
-listParse :: [String] -> Parser Cmd
-listParse = List <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
 
 listCmd :: String -> IO ()
 listCmd packName = do
-  print packName
-  pure ()
+  pk <- case (simpleParsec packName :: Maybe PackageName) of
+    Nothing -> die "Invalid package name."
+    Just pk -> pure pk
+  verMap <- cacheDeps
+  vers <- case Map.lookup pk verMap of
+    Nothing -> die $ "No such named: " ++ show pk
+    Just vers -> pure (sort vers)
+  mapM_ (putStrLn . prettyShow) vers
 
 addCmd :: String -> IO ()
 addCmd packName = do
@@ -147,12 +137,55 @@ addCmd packName = do
     [fname] -> add dep fname
     _ -> die "Multiple cabal-files found."
 
+rebuildCmd :: IO ()
+rebuildCmd = buildCache >> putStrLn "Done."
+
+-------------------------------------------------------------------------------
+-- Orphan Sinbin
+-------------------------------------------------------------------------------
+
+instance Store PackageName
+
+instance Store ShortText
+
+instance Store Version
+
+-------------------------------------------------------------------------------
+-- Options Parsing
+-------------------------------------------------------------------------------
+
+cacheFile :: FilePath
+cacheFile = ".cabal-cache.db"
+
+cacheDb :: IO FilePath
+cacheDb = do
+  home <- getHomeDirectory
+  cabalExists <- doesDirectoryExist (home </> ".cabal")
+  if cabalExists
+    then pure (home </> ".cabal" </> cacheFile)
+    else die "No ~/.cabal directory found. Is cabal installed?"
+
+data Cmd
+  = Add String
+  | List String
+  | Upgrade String
+  | Remove String
+  | Rebuild
+  deriving (Eq, Show)
+
+addParse :: [String] -> Parser Cmd
+addParse localPackages = Add <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
+
+listParse :: [String] -> Parser Cmd
+listParse localPackages = List <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
+
 opts :: [String] -> Parser Cmd
 opts localPackages =
   subparser $
     mconcat
       [ command "add" (info (addParse localPackages) (progDesc "Add dependency to cabal file.")),
-        command "list" (info (listParse localPackages) (progDesc "List available versions from Hackage."))
+        command "list" (info (listParse localPackages) (progDesc "List available versions from Hackage.")),
+        command "rebuild" (info (pure Rebuild) (progDesc "Rebuild cache."))
       ]
 
 main :: IO ()
@@ -163,6 +196,7 @@ main = do
   case cmd of
     Add dep -> addCmd dep
     List dep -> listCmd dep
+    Rebuild -> rebuildCmd
     Upgrade _ -> pure ()
     Remove _ -> pure ()
   where
