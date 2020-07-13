@@ -68,16 +68,40 @@ majorVersion = alterVersion go
 
 add :: Dependency -> FilePath -> IO ()
 add dep cabalFile = do
+  case depVerRange dep of
+    AnyVersion -> do
+      desc <- readGenericPackageDescription normal cabalFile
+      let pk = depPkgName dep
+      verMap <- cacheDeps
+      ver <- case Map.lookup pk verMap of
+        Nothing -> die $ "No such named: " ++ show pk
+        Just vers -> pure (maximum vers)
+      let dependency = Dependency pk (majorBoundVersion (majorVersion ver)) (Set.singleton defaultLibName)
+      putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName cabalFile
+      let desc' = addDep dependency desc
+      writeGenericPackageDescription cabalFile desc'
+    ThisVersion givenVersion -> addVer ThisVersion givenVersion cabalFile dep
+    LaterVersion givenVersion -> addVer LaterVersion givenVersion cabalFile dep
+    OrLaterVersion givenVersion -> addVer OrLaterVersion givenVersion cabalFile dep
+    EarlierVersion givenVersion -> addVer EarlierVersion givenVersion cabalFile dep
+    WildcardVersion givenVersion -> addVer WildcardVersion givenVersion cabalFile dep
+    givenVersion -> die $ "Given version is not on available on Hackage." ++ show givenVersion
+
+addVer :: (Version -> VersionRange) -> Version -> FilePath -> Dependency -> IO ()
+addVer f givenVersion cabalFile dep = do
   desc <- readGenericPackageDescription normal cabalFile
   let pk = depPkgName dep
   verMap <- cacheDeps
-  ver <- case Map.lookup pk verMap of
-    Nothing -> die $ "No such named: " ++ show pk
-    Just vers -> pure (maximum vers)
-  let dependency = Dependency pk (majorBoundVersion (majorVersion ver)) (Set.singleton defaultLibName)
-  putStrLn $ "Adding dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName cabalFile
+  let dependency = Dependency pk (f givenVersion) (Set.singleton defaultLibName)
   let desc' = addDep dependency desc
-  writeGenericPackageDescription cabalFile desc'
+  case Map.lookup pk verMap of
+    Nothing -> die $ "No such named: " ++ show pk
+    Just vers ->
+      if Data.List.elem givenVersion vers
+        then do
+          putStrLn $ "Adding explicit dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName cabalFile
+          writeGenericPackageDescription cabalFile desc'
+        else die $ "Given version is not on available on Hackage." ++ show givenVersion
 
 cacheDeps :: IO (Map PackageName [Version])
 cacheDeps = do
