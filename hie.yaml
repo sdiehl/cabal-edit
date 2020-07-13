@@ -4,4 +4,4 @@ cradle:
       component: "lib:cabal-edit"
 
     - path: "./exe/Main.hs"
-      component: "cabal-add:exe:cabal-edit"
+      component: "cabal-edit:exe:cabal-edit"
