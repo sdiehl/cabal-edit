@@ -5,5 +5,8 @@ extra-deps:
 - store-0.7.4
 - store-core-0.4.4.2
 - th-utilities-0.2.4.0
+- Cabal-3.2.0.0
+- hackage-db-2.1.0
+- optparse-applicative-0.15.1.0
 flags: {}
 extra-package-dbs: []
