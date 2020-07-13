@@ -1,6 +1,9 @@
 cabal-edit
 ==========
 
+![Cabal CI](https://github.com/sdiehl/cabal-edit/workflows/Cabal%20CI/badge.svg)
+![Stack CI](https://github.com/sdiehl/cabal-edit/workflows/Stack%20CI/badge.svg)
+
 This is an extension to Haskell's package manager Cabal to allow you to add,
 remove, and upgrade dependencies by modifying your cabal file from the
 command line. This behaves similar to  `install --save` commands in other
@@ -29,7 +32,7 @@ If we want to depend on a specific version of `aeson`, we can pass this
 explicitly as an argument.
 
 ```bash
-$ cabal-edit add aeson==1.4
+$ cabal-edit add aeson==1.4.0.0
 ```
 
 The Hackage database can be queried from the command line to search for all
@@ -93,7 +96,7 @@ shell completer appropriate to your shell. Then add the output to one of
 ```bash
 $ cabal-edit --zsh-completion-script cabal-edit
 $ cabal-edit --bash-completion-script cabal-edit
-$ cabal-edit --bash-completion-script cabal-edit
+$ cabal-edit --fish-completion-script cabal-edit
 ```
 
 This will completion against the Hackage database prefixed by name.
