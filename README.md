@@ -3,7 +3,8 @@ cabal-edit
 
 This is an extension to Haskell's package manager Cabal to allow you to add,
 remove, and upgrade dependencies by modifying your cabal file from the
-command line.
+command line. This behaves similar to  `install --save` commands in other
+package managers.
 
 * `cabal-edit add`
 * `cabal-edit list`
