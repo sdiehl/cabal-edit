@@ -20,7 +20,7 @@ $ cabal init --lib --cabal-version=3.0
 $ cabal-edit add aeson                
 Adding dependency: aeson ^>=1.5 to sample.cabal
 
-$ sample cabal-edit add text 
+$ cabal-edit add text 
 Adding dependency: text ^>=1.2 to sample.cabal
 ```
 
