@@ -49,7 +49,6 @@ jobs:
     - name: Install dependencies
       run: |
         set -ex
-        stack init
         stack --no-terminal --install-ghc --resolver $ARGS test --bench --only-dependencies
         set +ex
       env:

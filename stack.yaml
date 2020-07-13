@@ -1,0 +1,9 @@
+resolver: lts-15.16
+packages:
+- '.'
+extra-deps: 
+- store-0.7.4
+- store-core-0.4.4.2
+- th-utilities-0.2.4.0
+flags: {}
+extra-package-dbs: []

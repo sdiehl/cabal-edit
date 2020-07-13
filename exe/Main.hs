@@ -73,7 +73,7 @@ add dep cabalFile = do
   verMap <- cacheDeps
   ver <- case Map.lookup pk verMap of
     Nothing -> die $ "No such named: " ++ show pk
-    Just vers -> pure (last (sort vers))
+    Just vers -> pure (maximum vers)
   let dependency = Dependency pk (majorBoundVersion (majorVersion ver)) (Set.singleton defaultLibName)
   putStrLn $ "Adding dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName cabalFile
   let desc' = addDep dependency desc
@@ -109,7 +109,7 @@ buildCache = do
 completerPacks :: IO [String]
 completerPacks = do
   db <- cacheDeps
-  pure (fmap unPackageName $ Map.keys db)
+  pure (unPackageName <$> Map.keys db)
 
 -------------------------------------------------------------------------------
 -- Comamnds
@@ -191,7 +191,7 @@ opts localPackages =
 main :: IO ()
 main = do
   comps <- completerPacks
-  let options = info ((opts comps) <**> helper) idm
+  let options = info (opts comps <**> helper) idm
   cmd <- customExecParser p options
   case cmd of
     Add dep -> addCmd dep
