@@ -67,7 +67,7 @@ majorVersion = alterVersion go
     go _ = error "Non-PVP versioning scheme in Hackage metadata. Should never happen."
 
 add :: Dependency -> FilePath -> IO ()
-add dep cabalFile = do
+add dep cabalFile =
   case depVerRange dep of
     AnyVersion -> do
       desc <- readGenericPackageDescription normal cabalFile
@@ -97,7 +97,7 @@ addVer f givenVersion cabalFile dep = do
   case Map.lookup pk verMap of
     Nothing -> die $ "No such named: " ++ show pk
     Just vers ->
-      if Data.List.elem givenVersion vers
+      if givenVersion `elem` vers
         then do
           putStrLn $ "Adding explicit dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName cabalFile
           writeGenericPackageDescription cabalFile desc'
