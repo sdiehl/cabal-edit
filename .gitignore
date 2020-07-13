@@ -10,3 +10,4 @@ dist*/
 TAGS
 dist-newstyle
 .cabal-cache.db
+stack.yaml.lock
