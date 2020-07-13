@@ -12,25 +12,24 @@ description:        Cabal add dependencies
 category:           Cabal
 build-type:         Simple
 extra-source-files:
-    CHANGELOG.md
-    README.md
+  CHANGELOG.md
+  README.md
 
 executable cabal-edit
-    main-is:          Main.hs
-    hs-source-dirs:   exe
-    default-language: Haskell2010
-    ghc-options:      -Wall
-    build-depends:
-        base >=4.12,
-        Glob ^>=0.10,
-        Cabal >=3.0,
-        parsec ^>=3.1,
-        directory ^>=1.3,
-        filepath ^>=1.4,
-        bytestring ^>=0.10,
-        containers >=0.6,
-        hackage-db >=2.1,
-        optparse-applicative >=0.15,
-        pretty-simple -any,
-        store >=0.7,
-        time >=1.8
+  main-is:          Main.hs
+  hs-source-dirs:   exe
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  build-depends:
+    , base                  >=4.12
+    , bytestring            ^>=0.10
+    , Cabal                 >=3.0
+    , containers            >=0.6
+    , directory             ^>=1.3
+    , filepath              ^>=1.4
+    , Glob                  ^>=0.10
+    , hackage-db            >=2.1
+    , optparse-applicative  >=0.15
+    , parsec                ^>=3.1
+    , store                 >=0.7
+    , time                  >=1.8

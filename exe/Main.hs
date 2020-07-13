@@ -75,7 +75,7 @@ add dep cabalFile = do
     Nothing -> die $ "No such named: " ++ show pk
     Just vers -> pure (last (sort vers))
   let dependency = Dependency pk (majorBoundVersion (majorVersion ver)) (Set.singleton defaultLibName)
-  putStrLn $ "Adding dependency: " ++ show ver ++ " to " ++ show cabalFile
+  putStrLn $ "Adding dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName cabalFile
   let desc' = addDep dependency desc
   writeGenericPackageDescription cabalFile desc'
 
