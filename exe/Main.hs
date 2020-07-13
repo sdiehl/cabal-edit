@@ -55,7 +55,7 @@ majorVersion = alterVersion go
 
 main :: IO ()
 main = do
-  let fname = "cabal-add.cabal"
+  let fname = "cabal-edit.cabal"
   [packName] <- getArgs
   desc <- readGenericPackageDescription normal fname
   let pk = mkPackageName packName

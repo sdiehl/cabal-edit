@@ -1,7 +1,7 @@
 cradle:
   cabal:
     - path: "./src"
-      component: "lib:cabal-add"
+      component: "lib:cabal-edit"
 
     - path: "./exe/Main.hs"
-      component: "cabal-add:exe:cabal-add"
+      component: "cabal-add:exe:cabal-edit"
