@@ -8,5 +8,6 @@ extra-deps:
 - Cabal-3.2.0.0
 - hackage-db-2.1.0
 - optparse-applicative-0.15.1.0
+- Glob-0.10.0
 flags: {}
 extra-package-dbs: []
