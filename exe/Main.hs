@@ -40,7 +40,7 @@ import System.FilePath.Glob
 import System.FilePath.Posix
 
 -------------------------------------------------------------------------------
--- Dependency Addition
+-- Package Manipulation
 -------------------------------------------------------------------------------
 
 addDep ::
@@ -64,10 +64,21 @@ setLibDeps ::
   BuildInfo
 setLibDeps deps binfo@BuildInfo {} = binfo {targetBuildDepends = deps}
 
-getDeps :: GenericPackageDescription -> [Dependency]
+getDeps ::
+  GenericPackageDescription ->
+  [Dependency]
 getDeps GenericPackageDescription {..} = concat (maybeToList (fmap go condLibrary))
   where
     go (CondNode Library {..} _ _) = targetBuildDepends libBuildInfo
+
+setDeps ::
+  [Dependency] ->
+  GenericPackageDescription ->
+  GenericPackageDescription
+setDeps deps pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
+  where
+    go (CondNode var@Library {..} libdeps libs) =
+      CondNode (var {libBuildInfo = setLibDeps deps libBuildInfo}) libdeps libs
 
 lookupDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
 lookupDep pkg pk = Data.List.lookup pk [(depPkgName dep, dep) | dep <- getDeps pkg]
@@ -78,14 +89,9 @@ hasLib pkg =
     then pure ()
     else die "Package has no public library. Cannot modify dependencies."
 
-setDeps ::
-  [Dependency] ->
-  GenericPackageDescription ->
-  GenericPackageDescription
-setDeps deps pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
-  where
-    go (CondNode var@Library {..} libdeps libs) =
-      CondNode (var {libBuildInfo = setLibDeps deps libBuildInfo}) libdeps libs
+-------------------------------------------------------------------------------
+-- Dependency Addition
+-------------------------------------------------------------------------------
 
 majorVersion :: Version -> Version
 majorVersion = alterVersion go
@@ -116,7 +122,12 @@ add dep (fname, cabalFile) =
     WildcardVersion givenVersion -> addVer WildcardVersion givenVersion (fname, cabalFile) dep
     givenVersion -> die $ "Given version is not on available on Hackage." ++ show givenVersion
 
-addVer :: (Version -> VersionRange) -> Version -> (FilePath, GenericPackageDescription) -> Dependency -> IO GenericPackageDescription
+addVer ::
+  (Version -> VersionRange) ->
+  Version ->
+  (FilePath, GenericPackageDescription) ->
+  Dependency ->
+  IO GenericPackageDescription
 addVer f givenVersion (fname, cabalFile) dep = do
   let pk = depPkgName dep
   verMap <- cacheDeps
@@ -130,6 +141,10 @@ addVer f givenVersion (fname, cabalFile) dep = do
           putStrLn $ "Adding explicit dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
           pure cabalFile'
         else die $ "Given version is not on available on Hackage." ++ show givenVersion
+
+-------------------------------------------------------------------------------
+-- Version Cache
+-------------------------------------------------------------------------------
 
 cacheDeps :: IO (Map PackageName [Version])
 cacheDeps = do
@@ -158,13 +173,19 @@ buildCache = do
   BS.writeFile cache (encode db)
   pure db
 
-completerPacks :: IO [String]
-completerPacks = do
-  db <- cacheDeps
-  pure (unPackageName <$> Map.keys db)
+cacheFile :: FilePath
+cacheFile = ".cabal-cache.db"
+
+cacheDb :: IO FilePath
+cacheDb = do
+  home <- getHomeDirectory
+  cabalExists <- doesDirectoryExist (home </> ".cabal")
+  if cabalExists
+    then pure (home </> ".cabal" </> cacheFile)
+    else die "No ~/.cabal directory found. Is cabal installed?"
 
 -------------------------------------------------------------------------------
--- Comamnds
+-- Commands
 -------------------------------------------------------------------------------
 
 listCmd :: String -> IO ()
@@ -252,17 +273,6 @@ instance Store Version
 -- Options Parsing
 -------------------------------------------------------------------------------
 
-cacheFile :: FilePath
-cacheFile = ".cabal-cache.db"
-
-cacheDb :: IO FilePath
-cacheDb = do
-  home <- getHomeDirectory
-  cabalExists <- doesDirectoryExist (home </> ".cabal")
-  if cabalExists
-    then pure (home </> ".cabal" </> cacheFile)
-    else die "No ~/.cabal directory found. Is cabal installed?"
-
 data Cmd
   = Add String
   | List String
@@ -271,6 +281,11 @@ data Cmd
   | Format
   | Rebuild
   deriving (Eq, Show)
+
+completerPacks :: IO [String]
+completerPacks = do
+  db <- cacheDeps
+  pure (unPackageName <$> Map.keys db)
 
 addParse :: [String] -> Parser Cmd
 addParse localPackages = Add <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
