@@ -132,7 +132,7 @@ cacheDeps = do
     then do
       dbContents <- BS.readFile cache
       case decode dbContents of
-        Left _ -> die "Corrupted cabal cache file."
+        Left _ -> die "Corrupted cabal cache file. Run 'cabal-edit rebuild'."
         Right db -> pure db
     else do
       putStrLn "No cache file found, building from HackageDB."
