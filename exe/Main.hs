@@ -10,6 +10,7 @@ import Control.Monad
 import qualified Data.ByteString as BS
 import Data.List
 import Data.Map as Map
+import Data.Maybe
 import Data.Set as Set
 import Data.Store
 import Data.Time.Clock
@@ -55,6 +56,26 @@ addLibDep ::
   BuildInfo ->
   BuildInfo
 addLibDep dep binfo@BuildInfo {..} = binfo {targetBuildDepends = targetBuildDepends <> [dep]}
+
+setLibDeps ::
+  [Dependency] ->
+  BuildInfo ->
+  BuildInfo
+setLibDeps deps binfo@BuildInfo {} = binfo {targetBuildDepends = deps}
+
+getDeps :: GenericPackageDescription -> [Dependency]
+getDeps GenericPackageDescription {..} = concat (maybeToList (fmap go condLibrary))
+  where
+    go (CondNode Library {..} _ _) = targetBuildDepends libBuildInfo
+
+setDeps ::
+  [Dependency] ->
+  GenericPackageDescription ->
+  GenericPackageDescription
+setDeps deps pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
+  where
+    go (CondNode var@Library {..} libdeps libs) =
+      CondNode (var {libBuildInfo = setLibDeps deps libBuildInfo}) libdeps libs
 
 majorVersion :: Version -> Version
 majorVersion = alterVersion go
