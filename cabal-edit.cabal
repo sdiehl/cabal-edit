@@ -7,8 +7,10 @@ copyright:          2020 Stephen Diehl
 maintainer:         stephen.m.diehl@gmail.com
 author:             sdiehl
 bug-reports:        https:/www.github.com/sdiehl/cabal-add/issues
-description:        A utility for managing Hackage dependencies from the command line.
 synopsis:           Cabal utility
+description:
+  A utility for managing Hackage dependencies from the command line.
+
 category:           Cabal
 build-type:         Simple
 extra-source-files:

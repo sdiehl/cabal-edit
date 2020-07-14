@@ -27,6 +27,7 @@ import Distribution.Types.Dependency
 import Distribution.Types.GenericPackageDescription
 import Distribution.Types.Library
 import Distribution.Types.LibraryName
+import Distribution.Types.PackageDescription
 import Distribution.Types.PackageName
 import Distribution.Types.Version
 import Distribution.Types.VersionRange.Internal
@@ -68,6 +69,15 @@ getDeps GenericPackageDescription {..} = concat (maybeToList (fmap go condLibrar
   where
     go (CondNode Library {..} _ _) = targetBuildDepends libBuildInfo
 
+lookupDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
+lookupDep pkg pk = Data.List.lookup pk [(depPkgName dep, dep) | dep <- getDeps pkg]
+
+hasLib :: GenericPackageDescription -> IO ()
+hasLib pkg =
+  if hasLibs (packageDescription pkg)
+    then pure ()
+    else die "Package has no public library. Cannot modify dependencies."
+
 setDeps ::
   [Dependency] ->
   GenericPackageDescription ->
@@ -87,41 +97,38 @@ majorVersion = alterVersion go
     go [] = []
     go _ = error "Non-PVP versioning scheme in Hackage metadata. Should never happen."
 
-add :: Dependency -> FilePath -> IO ()
-add dep cabalFile =
+add :: Dependency -> (FilePath, GenericPackageDescription) -> IO GenericPackageDescription
+add dep (fname, cabalFile) =
   case depVerRange dep of
     AnyVersion -> do
-      desc <- readGenericPackageDescription normal cabalFile
       let pk = depPkgName dep
       verMap <- cacheDeps
       ver <- case Map.lookup pk verMap of
         Nothing -> die $ "No such named: " ++ show pk
         Just vers -> pure (maximum vers)
       let dependency = Dependency pk (majorBoundVersion (majorVersion ver)) (Set.singleton defaultLibName)
-      putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName cabalFile
-      let desc' = addDep dependency desc
-      writeGenericPackageDescription cabalFile desc'
-    ThisVersion givenVersion -> addVer ThisVersion givenVersion cabalFile dep
-    LaterVersion givenVersion -> addVer LaterVersion givenVersion cabalFile dep
-    OrLaterVersion givenVersion -> addVer OrLaterVersion givenVersion cabalFile dep
-    EarlierVersion givenVersion -> addVer EarlierVersion givenVersion cabalFile dep
-    WildcardVersion givenVersion -> addVer WildcardVersion givenVersion cabalFile dep
+      putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
+      pure (addDep dependency cabalFile)
+    ThisVersion givenVersion -> addVer ThisVersion givenVersion (fname, cabalFile) dep
+    LaterVersion givenVersion -> addVer LaterVersion givenVersion (fname, cabalFile) dep
+    OrLaterVersion givenVersion -> addVer OrLaterVersion givenVersion (fname, cabalFile) dep
+    EarlierVersion givenVersion -> addVer EarlierVersion givenVersion (fname, cabalFile) dep
+    WildcardVersion givenVersion -> addVer WildcardVersion givenVersion (fname, cabalFile) dep
     givenVersion -> die $ "Given version is not on available on Hackage." ++ show givenVersion
 
-addVer :: (Version -> VersionRange) -> Version -> FilePath -> Dependency -> IO ()
-addVer f givenVersion cabalFile dep = do
-  desc <- readGenericPackageDescription normal cabalFile
+addVer :: (Version -> VersionRange) -> Version -> (FilePath, GenericPackageDescription) -> Dependency -> IO GenericPackageDescription
+addVer f givenVersion (fname, cabalFile) dep = do
   let pk = depPkgName dep
   verMap <- cacheDeps
   let dependency = Dependency pk (f givenVersion) (Set.singleton defaultLibName)
-  let desc' = addDep dependency desc
+  let cabalFile' = addDep dependency cabalFile
   case Map.lookup pk verMap of
     Nothing -> die $ "No such named: " ++ show pk
     Just vers ->
       if givenVersion `elem` vers
         then do
-          putStrLn $ "Adding explicit dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName cabalFile
-          writeGenericPackageDescription cabalFile desc'
+          putStrLn $ "Adding explicit dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
+          pure cabalFile'
         else die $ "Given version is not on available on Hackage." ++ show givenVersion
 
 cacheDeps :: IO (Map PackageName [Version])
@@ -176,14 +183,60 @@ addCmd packName = do
   dep <- case (simpleParsec packName :: Maybe Dependency) of
     Nothing -> die "Invalid dependency version number."
     Just dep -> pure dep
-  cabalFiles <- glob "*.cabal"
-  case cabalFiles of
-    [] -> die "No cabal file found in current directory."
-    [fname] -> add dep fname
-    _ -> die "Multiple cabal-files found."
+  (fname, cabalFile) <- getCabal
+  cabalFile' <- add dep (fname, cabalFile)
+  hasLib cabalFile
+  writeGenericPackageDescription fname cabalFile'
+
+upgradeCmd :: String -> IO ()
+upgradeCmd packName = do
+  pk <- case (simpleParsec packName :: Maybe PackageName) of
+    Nothing -> die "Invalid package name."
+    Just pk -> pure pk
+  verMap <- cacheDeps
+  latestVer <- case Map.lookup pk verMap of
+    Nothing -> die $ "No such named: " ++ show pk
+    Just vers -> pure (maximum vers)
+  (fname, cabalFile) <- getCabal
+  hasLib cabalFile
+  case lookupDep cabalFile pk of
+    Nothing -> die $ "No current dependency on: " ++ show pk
+    Just dep -> do
+      print latestVer
+      print dep
+
+removeCmd :: String -> IO ()
+removeCmd packName = do
+  pk <- case (simpleParsec packName :: Maybe PackageName) of
+    Nothing -> die "Invalid package name."
+    Just pk -> pure pk
+  verMap <- cacheDeps
+  latestVer <- case Map.lookup pk verMap of
+    Nothing -> die $ "No such named: " ++ show pk
+    Just vers -> pure (maximum vers)
+  (fname, cabalFile) <- getCabal
+  case lookupDep cabalFile pk of
+    Nothing -> die $ "No current dependency on: " ++ show pk
+    Just dep -> pure ()
 
 rebuildCmd :: IO ()
 rebuildCmd = buildCache >> putStrLn "Done."
+
+formatCmd :: IO ()
+formatCmd = do
+  (fname, cabalFile) <- getCabal
+  putStrLn $ "Formatting: " ++ takeFileName fname
+  writeGenericPackageDescription fname cabalFile
+
+getCabal :: IO (FilePath, GenericPackageDescription)
+getCabal = do
+  cabalFiles <- glob "*.cabal"
+  case cabalFiles of
+    [] -> die "No cabal file found in current directory."
+    [fname] -> do
+      pkg <- readGenericPackageDescription normal fname
+      pure (fname, pkg)
+    _ -> die "Multiple cabal-files found."
 
 -------------------------------------------------------------------------------
 -- Orphan Sinbin
@@ -215,6 +268,7 @@ data Cmd
   | List String
   | Upgrade String
   | Remove String
+  | Format
   | Rebuild
   deriving (Eq, Show)
 
@@ -224,13 +278,22 @@ addParse localPackages = Add <$> argument str (metavar "PACKAGE" <> completeWith
 listParse :: [String] -> Parser Cmd
 listParse localPackages = List <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
 
+upgradeParse :: [String] -> Parser Cmd
+upgradeParse localPackages = Upgrade <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
+
+removeParse :: [String] -> Parser Cmd
+removeParse localPackages = Remove <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
+
 opts :: [String] -> Parser Cmd
 opts localPackages =
   subparser $
     mconcat
       [ command "add" (info (addParse localPackages) (progDesc "Add dependency to cabal file.")),
         command "list" (info (listParse localPackages) (progDesc "List available versions from Hackage.")),
-        command "rebuild" (info (pure Rebuild) (progDesc "Rebuild cache."))
+        command "upgrade" (info (upgradeParse localPackages) (progDesc "Upgrade bounds for given package.")),
+        command "remove" (info (removeParse localPackages) (progDesc "Remove a given package.")),
+        command "rebuild" (info (pure Rebuild) (progDesc "Rebuild cache.")),
+        command "format" (info (pure Format) (progDesc "Format cabal file."))
       ]
 
 main :: IO ()
@@ -241,8 +304,9 @@ main = do
   case cmd of
     Add dep -> addCmd dep
     List dep -> listCmd dep
+    Upgrade dep -> upgradeCmd dep
+    Remove dep -> removeCmd dep
+    Format -> formatCmd
     Rebuild -> rebuildCmd
-    Upgrade _ -> pure ()
-    Remove _ -> pure ()
   where
     p = prefs showHelpOnEmpty
