@@ -102,7 +102,7 @@ $ cabal-edit --fish-completion-script cabal-edit
 This will completion against the Hackage database prefixed by name.
 
 ```
-$ ~ cabal-edit add gh
+$ cabal-edit add gh
 zsh: do you wish to see all 103 possibilities (15 lines)?
 $ cabal-edit add ghc-pa
 ghc-parmake  ghc-parser   ghc-paths
