@@ -74,11 +74,12 @@ $ git clone git@github.com:sdiehl/cabal-edit.git
 $ cd cabal-edit
 ```
 
-Then install either with Stack or Cabal.
+Then install either with Stack, Cabal or Nix.
 
 ```bash
 $ stack install 
 $ cabal install --installdir=/home/$USER/.local/bin
+$ nix-build -A cabal-edit
 ```
 
 *Note: This library links directly against Cabal, so you must be using the same
