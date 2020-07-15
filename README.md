@@ -62,10 +62,38 @@ $ cabal-edit list filepath
 1.4.2.1
 ```
 
-You may wish to then run [cabal-fmt] on the outputted file to canonicalise it.
-Auto-formatting of the outputted cabal may be added in the future.
+The `format` command will canonicalise the Cabal into by parsing it and running
+it through the pretty printer again.
+
+```bash
+$ cabal-edit format
+Formatting: sample.cabal
+```
+
+You may then wish to then run [cabal-fmt] on the outputted file to canonicalise
+it furter and layout the dependency table.  Auto-formatting of the outputted
+cabal may be added in the future.
 
 [cabal-fmt]: https://github.com/phadej/cabal-fmt
+
+
+The `extensions` command will enumerate all the default extensions enabled for
+the given library. This is useful if you wish to add these headers to files
+within the project.
+
+```bash
+$ cabal-edit extensions
+
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+```
 
 Installation
 ------------
