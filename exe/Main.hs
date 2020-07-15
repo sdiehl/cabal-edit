@@ -89,6 +89,11 @@ modifyDeps f pkg = setDeps [f (depPkgName dep) dep | dep <- getDeps pkg] pkg
 lookupDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
 lookupDep pkg pk = Data.List.lookup pk [(depPkgName dep, dep) | dep <- getDeps pkg]
 
+buildInfo :: GenericPackageDescription -> Maybe BuildInfo
+buildInfo GenericPackageDescription {..} = fmap go condLibrary
+  where
+    go (CondNode var@Library {..} deps libs) = libBuildInfo
+
 hasLib :: GenericPackageDescription -> IO ()
 hasLib pkg =
   if hasLibs (packageDescription pkg)
@@ -249,6 +254,16 @@ removeCmd packName = do
 rebuildCmd :: IO ()
 rebuildCmd = buildCache >> putStrLn "Done."
 
+extensionsCmd :: IO ()
+extensionsCmd = do
+  (fname, cabalFile) <- getCabal
+  let extensions = fmap defaultExtensions (buildInfo cabalFile)
+  case extensions of
+    Nothing -> putStrLn "No default extensions"
+    Just exts -> mapM_ (putStrLn . showExt) exts
+  where
+    showExt ext = "{-# LANGUAGE " ++ prettyShow ext ++ " #-}"
+
 formatCmd :: IO ()
 formatCmd = do
   (fname, cabalFile) <- getCabal
@@ -286,6 +301,7 @@ data Cmd
   | Remove String
   | Format
   | Rebuild
+  | Extensions
   deriving (Eq, Show)
 
 completerPacks :: IO [String]
@@ -314,7 +330,8 @@ opts localPackages =
         command "upgrade" (info (upgradeParse localPackages) (progDesc "Upgrade bounds for given package.")),
         command "remove" (info (removeParse localPackages) (progDesc "Remove a given package.")),
         command "rebuild" (info (pure Rebuild) (progDesc "Rebuild cache.")),
-        command "format" (info (pure Format) (progDesc "Format cabal file."))
+        command "format" (info (pure Format) (progDesc "Format cabal file.")),
+        command "extensions" (info (pure Extensions) (progDesc "List all default language extensions pragmas."))
       ]
 
 main :: IO ()
@@ -329,5 +346,6 @@ main = do
     Remove dep -> removeCmd dep
     Format -> formatCmd
     Rebuild -> rebuildCmd
+    Extensions -> extensionsCmd
   where
     p = prefs showHelpOnEmpty

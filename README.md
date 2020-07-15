@@ -13,6 +13,9 @@ package managers.
 * `cabal-edit list`
 * `cabal-edit upgrade`
 * `cabal-edit remove`
+* `cabal-edit extensions`
+* `cabal-edit format`
+* `cabal-edit rebuild`
 
 For example to setup a new project one often wants to add common dependencies
 like `text` and `aeson`. We can use `cabal-edit` to automatically append these
