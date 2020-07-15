@@ -80,6 +80,12 @@ setDeps deps pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go con
     go (CondNode var@Library {..} libdeps libs) =
       CondNode (var {libBuildInfo = setLibDeps deps libBuildInfo}) libdeps libs
 
+modifyDeps ::
+  (PackageName -> Dependency -> Dependency) ->
+  GenericPackageDescription ->
+  GenericPackageDescription
+modifyDeps f pkg = setDeps [f (depPkgName dep) dep | dep <- getDeps pkg] pkg
+
 lookupDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
 lookupDep pkg pk = Data.List.lookup pk [(depPkgName dep, dep) | dep <- getDeps pkg]
 
