@@ -21,7 +21,7 @@ package managers.
 Usage
 -----
 
-**cabal-edit add**
+**add**
 
 For example to setup a new project one often wants to add common dependencies
 like `text` and `aeson`. We can use `cabal-edit` to automatically append these
@@ -44,7 +44,7 @@ explicitly as an argument.
 $ cabal-edit add aeson==1.4.0.0
 ```
 
-**cabal-edit ugprade**
+**ugprade**
 
 The ugprade command can be used to safely manipulate the version bounds for a
 given library. For instance if one has the simple Cabal with a dependency on
@@ -81,7 +81,32 @@ library
         text >=1.0 && <=1.3
 ```
 
-**cabal-edit list**
+**ugpradeall**
+
+`upgradeall` behaves like `upgrade` but performs the version bound bump for all
+available dependencies. This sets the upper bounds for all dependencies to the
+latest available version on Hackage.
+
+```bash
+$ cabal-edit upgradeall
+Upgrading bounds for Cabal to 3.3
+Upgrading bounds for aeson to 1.6
+Upgrading bounds for base to 4.15
+Upgrading bounds for bytestring to 0.11
+Upgrading bounds for ghc to 8.11
+Upgrading bounds for text to 1.3
+```
+
+**remove**
+
+Remove will remove a given dependency from the file completely.
+
+```
+$ cabal-edit remove microlens
+Removing depndency on microlens
+```
+
+**list**
 
 The Hackage database can be queried from the command line to search for all
 available versions to use with the `list` command.
@@ -107,7 +132,7 @@ $ cabal-edit list filepath
 1.4.2.1
 ```
 
-**cabal-edit format**
+**format**
 
 The `format` command will canonicalise the Cabal into by parsing it and running
 it through the pretty printer again.
@@ -124,7 +149,7 @@ cabal may be added in the future.
 [cabal-fmt]: https://github.com/phadej/cabal-fmt
 
 
-**cabal-edit extensions**
+**extensions**
 
 The `extensions` command will enumerate all the default extensions enabled for
 the given library. This is useful if you wish to add these headers to files

@@ -43,14 +43,14 @@ import System.FilePath.Posix
 -- Package Manipulation
 -------------------------------------------------------------------------------
 
-addDep ::
-  Dependency ->
-  GenericPackageDescription ->
-  GenericPackageDescription
-addDep dep pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
-  where
-    go (CondNode var@Library {..} deps libs) =
-      CondNode (var {libBuildInfo = addLibDep dep libBuildInfo}) (deps <> [dep]) libs
+--addDep ::
+--  Dependency ->
+--  GenericPackageDescription ->
+--  GenericPackageDescription
+--addDep dep pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
+--  where
+--    go (CondNode var@Library {..} deps libs) =
+--      CondNode (var {libBuildInfo = addLibDep dep libBuildInfo}) (deps <> [dep]) libs
 
 getDeps ::
   GenericPackageDescription ->
@@ -123,7 +123,11 @@ udpateDep pkg f pk = Map.updateWithKey f pk (depMap pkg)
 lookupDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
 lookupDep pkg pk = Map.lookup pk (depMap pkg)
 
+modifyDep :: GenericPackageDescription -> PackageName -> Dependency -> GenericPackageDescription
 modifyDep pkg pk dep = setDepMap (Map.insert pk dep (depMap pkg)) pkg
+
+deleteDep :: GenericPackageDescription -> PackageName -> GenericPackageDescription
+deleteDep pkg pk = setDepMap (Map.delete pk (depMap pkg)) pkg
 
 setDepMap :: Map.Map PackageName Dependency -> GenericPackageDescription -> GenericPackageDescription
 setDepMap pkm = setDeps (fmap snd (Map.toList pkm))
@@ -144,12 +148,13 @@ add dep (fname, cabalFile) =
     AnyVersion -> do
       let pk = depPkgName dep
       verMap <- cacheDeps
+      -- Lookup the latest version and use the majorBound of it.
       ver <- case Map.lookup pk verMap of
         Nothing -> die $ "No such named: " ++ show pk
         Just vers -> pure (maximum vers)
       let dependency = Dependency pk (majorBoundVersion (majorUpperBound ver)) (Set.singleton defaultLibName)
       putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
-      pure (addDep dependency cabalFile)
+      pure $ modifyDep cabalFile pk dependency
     ThisVersion givenVersion -> addVer ThisVersion givenVersion (fname, cabalFile) dep
     LaterVersion givenVersion -> addVer LaterVersion givenVersion (fname, cabalFile) dep
     OrLaterVersion givenVersion -> addVer OrLaterVersion givenVersion (fname, cabalFile) dep
@@ -198,6 +203,15 @@ upgrade pk latest (fname, cabalFile) = do
       let dep' = Dependency (depPkgName dep) (majorBoundVersion latest) (depLibraries dep)
       pure $ modifyDep cabalFile pk dep'
 
+remove ::
+  PackageName ->
+  (FilePath, GenericPackageDescription) ->
+  IO GenericPackageDescription
+remove pk (fname, cabalFile) = do
+  case lookupDep cabalFile pk of
+    Nothing -> pure cabalFile
+    Just dep -> pure $ deleteDep cabalFile pk
+
 addVer ::
   (Version -> VersionRange) ->
   Version ->
@@ -208,14 +222,14 @@ addVer f givenVersion (fname, cabalFile) dep = do
   let pk = depPkgName dep
   verMap <- cacheDeps
   let dependency = Dependency pk (f givenVersion) (Set.singleton defaultLibName)
-  let cabalFile' = addDep dependency cabalFile
   case Map.lookup pk verMap of
     Nothing -> die $ "No such named: " ++ show pk
     Just vers ->
       if givenVersion `elem` vers
         then do
           putStrLn $ "Adding explicit dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
-          pure cabalFile'
+          let dep' = Dependency (depPkgName dep) (majorBoundVersion givenVersion) (depLibraries dep)
+          pure $ modifyDep cabalFile pk dep'
         else die $ "Given version is not on available on Hackage." ++ show givenVersion
 
 -------------------------------------------------------------------------------
@@ -305,6 +319,20 @@ upgradeCmd packName = do
       cabalFile' <- upgrade pk ver' (fname, cabalFile)
       writeGenericPackageDescription fname cabalFile'
 
+upgradeAllCmd :: IO ()
+upgradeAllCmd = do
+  verMap <- cacheDeps
+  (fname, cabalFile) <- getCabal
+  let pks = fmap depPkgName (getDeps cabalFile)
+  forM_ pks $ \pk -> do
+    latestVer <- case Map.lookup pk verMap of
+      Nothing -> die $ "No such named: " ++ show pk
+      Just vers -> pure (maximum vers)
+    let ver' = majorUpperBound latestVer
+    putStrLn $ "Upgrading bounds for " ++ prettyShow pk ++ " to " ++ prettyShow ver'
+    cabalFile' <- upgrade pk ver' (fname, cabalFile)
+    writeGenericPackageDescription fname cabalFile'
+
 removeCmd :: String -> IO ()
 removeCmd packName = do
   pk <- case (simpleParsec packName :: Maybe PackageName) of
@@ -317,7 +345,10 @@ removeCmd packName = do
   (fname, cabalFile) <- getCabal
   case lookupDep cabalFile pk of
     Nothing -> die $ "No current dependency on: " ++ show pk
-    Just dep -> pure ()
+    Just dep -> do
+      putStrLn $ "Removing depndency on " ++ prettyShow pk
+      cabalFile' <- remove pk (fname, cabalFile)
+      writeGenericPackageDescription fname cabalFile'
 
 rebuildCmd :: IO ()
 rebuildCmd = buildCache >> putStrLn "Done."
@@ -366,6 +397,7 @@ data Cmd
   = Add String
   | List String
   | Upgrade String
+  | UpgradeAll
   | Remove String
   | Format
   | Rebuild
@@ -398,6 +430,7 @@ opts localPackages =
         command "upgrade" (info (upgradeParse localPackages) (progDesc "Upgrade bounds for given package.")),
         command "remove" (info (removeParse localPackages) (progDesc "Remove a given package.")),
         command "rebuild" (info (pure Rebuild) (progDesc "Rebuild cache.")),
+        command "upgradeall" (info (pure UpgradeAll) (progDesc "Upgrade all dependencies.")),
         command "format" (info (pure Format) (progDesc "Format cabal file.")),
         command "extensions" (info (pure Extensions) (progDesc "List all default language extensions pragmas."))
       ]
@@ -415,5 +448,6 @@ main = do
     Format -> formatCmd
     Rebuild -> rebuildCmd
     Extensions -> extensionsCmd
+    UpgradeAll -> upgradeAllCmd
   where
     p = prefs showHelpOnEmpty
