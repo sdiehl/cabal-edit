@@ -44,6 +44,9 @@ explicitly as an argument.
 $ cabal-edit add aeson==1.4.0.0
 ```
 
+*Note: Dependency modification will happen over the library stanza of your Cabal
+file, and not the executable sections.*
+
 **ugprade**
 
 The ugprade command can be used to safely manipulate the version bounds for a
