@@ -40,41 +40,6 @@ import System.FilePath.Glob
 import System.FilePath.Posix
 
 -------------------------------------------------------------------------------
--- Package Manipulation
--------------------------------------------------------------------------------
-
---addDep ::
---  Dependency ->
---  GenericPackageDescription ->
---  GenericPackageDescription
---addDep dep pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
---  where
---    go (CondNode var@Library {..} deps libs) =
---      CondNode (var {libBuildInfo = addLibDep dep libBuildInfo}) (deps <> [dep]) libs
-
-getDeps ::
-  GenericPackageDescription ->
-  [Dependency]
-getDeps pkg = concat (maybeToList depends)
-  where
-    depends = fmap targetBuildDepends (buildInfo pkg)
-
-setDeps ::
-  [Dependency] ->
-  GenericPackageDescription ->
-  GenericPackageDescription
-setDeps deps pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
-  where
-    go (CondNode var@Library {..} libdeps libs) =
-      CondNode (var {libBuildInfo = setLibDeps deps libBuildInfo}) libdeps libs
-
-modifyDeps ::
-  (PackageName -> Dependency -> Dependency) ->
-  GenericPackageDescription ->
-  GenericPackageDescription
-modifyDeps f pkg = setDeps [f (depPkgName dep) dep | dep <- getDeps pkg] pkg
-
--------------------------------------------------------------------------------
 -- Library Manipulation
 -------------------------------------------------------------------------------
 
@@ -108,6 +73,32 @@ hasLib pkg =
   if hasLibs (packageDescription pkg)
     then pure ()
     else die "Package has no public library. Cannot modify dependencies."
+
+-------------------------------------------------------------------------------
+-- Dependency Manipulation
+-------------------------------------------------------------------------------
+
+getDeps ::
+  GenericPackageDescription ->
+  [Dependency]
+getDeps pkg = concat (maybeToList depends)
+  where
+    depends = fmap targetBuildDepends (buildInfo pkg)
+
+setDeps ::
+  [Dependency] ->
+  GenericPackageDescription ->
+  GenericPackageDescription
+setDeps deps pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
+  where
+    go (CondNode var@Library {..} libdeps libs) =
+      CondNode (var {libBuildInfo = setLibDeps deps libBuildInfo}) libdeps libs
+
+modifyDeps ::
+  (PackageName -> Dependency -> Dependency) ->
+  GenericPackageDescription ->
+  GenericPackageDescription
+modifyDeps f pkg = setDeps [f (depPkgName dep) dep | dep <- getDeps pkg] pkg
 
 -------------------------------------------------------------------------------
 -- DepMap
