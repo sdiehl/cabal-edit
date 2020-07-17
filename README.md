@@ -47,9 +47,9 @@ $ cabal-edit add aeson==1.4.0.0
 *Note: Dependency modification will happen over the library stanza of your Cabal
 file, and not the executable sections.*
 
-### ugprade
+### upgrade
 
-The ugprade command can be used to safely manipulate the version bounds for a
+The upgrade command can be used to safely manipulate the version bounds for a
 given library. For instance if one has the simple Cabal with a dependency on
 `text` for `1.0` version range.:
 
@@ -84,7 +84,7 @@ library
         text >=1.0 && <=1.3
 ```
 
-### ugpradeall
+### upgradeall
 
 `upgradeall` behaves like `upgrade` but performs the version bound bump for all
 available dependencies. This sets the upper bounds for all dependencies to the
@@ -146,7 +146,7 @@ Formatting: sample.cabal
 ```
 
 You may then wish to then run [cabal-fmt] on the outputted file to canonicalise
-it furter and layout the dependency table.  Auto-formatting of the outputted
+it further and layout the dependency table.  Auto-formatting of the outputted
 cabal may be added in the future.
 
 [cabal-fmt]: https://github.com/phadej/cabal-fmt
