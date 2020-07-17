@@ -123,8 +123,7 @@ udpateDep pkg f pk = Map.updateWithKey f pk (depMap pkg)
 lookupDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
 lookupDep pkg pk = Map.lookup pk (depMap pkg)
 
-modifyDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
-modifyDep pkg pk = Map.lookup pk (depMap pkg)
+modifyDep pkg pk dep = setDepMap (Map.insert pk dep (depMap pkg)) pkg
 
 setDepMap :: Map.Map PackageName Dependency -> GenericPackageDescription -> GenericPackageDescription
 setDepMap pkm = setDeps (fmap snd (Map.toList pkm))
@@ -136,17 +135,10 @@ depMap pkg = Map.fromList [(depPkgName dep, dep) | dep <- getDeps pkg]
 -- Dependency Addition
 -------------------------------------------------------------------------------
 
-majorVersion :: Version -> Version
-majorVersion = alterVersion go
-  where
-    go [a, b, _, _] = [a, b]
-    go [a, b, _] = [a, b]
-    go [a, b] = [a, b]
-    go [a] = [a]
-    go [] = []
-    go _ = error "Non-PVP versioning scheme in Hackage metadata. Should never happen."
-
-add :: Dependency -> (FilePath, GenericPackageDescription) -> IO GenericPackageDescription
+add ::
+  Dependency ->
+  (FilePath, GenericPackageDescription) ->
+  IO GenericPackageDescription
 add dep (fname, cabalFile) =
   case depVerRange dep of
     AnyVersion -> do
@@ -155,7 +147,7 @@ add dep (fname, cabalFile) =
       ver <- case Map.lookup pk verMap of
         Nothing -> die $ "No such named: " ++ show pk
         Just vers -> pure (maximum vers)
-      let dependency = Dependency pk (majorBoundVersion (majorVersion ver)) (Set.singleton defaultLibName)
+      let dependency = Dependency pk (majorBoundVersion (majorUpperBound ver)) (Set.singleton defaultLibName)
       putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
       pure (addDep dependency cabalFile)
     ThisVersion givenVersion -> addVer ThisVersion givenVersion (fname, cabalFile) dep
@@ -164,6 +156,47 @@ add dep (fname, cabalFile) =
     EarlierVersion givenVersion -> addVer EarlierVersion givenVersion (fname, cabalFile) dep
     WildcardVersion givenVersion -> addVer WildcardVersion givenVersion (fname, cabalFile) dep
     givenVersion -> die $ "Given version is not on available on Hackage." ++ show givenVersion
+
+upgrade ::
+  PackageName ->
+  Version ->
+  (FilePath, GenericPackageDescription) ->
+  IO GenericPackageDescription
+upgrade pk latest (fname, cabalFile) = do
+  case lookupDep cabalFile pk of
+    Nothing -> pure cabalFile
+    Just dep -> do
+      case depVerRange dep of
+        AnyVersion -> replaceVersion dep
+        WildcardVersion prev -> replaceVersion dep
+        ThisVersion prev -> replaceVersion dep
+        LaterVersion prev -> do
+          let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
+          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
+          pure $ modifyDep cabalFile pk dep'
+        OrLaterVersion prev -> do
+          let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
+          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
+          pure $ modifyDep cabalFile pk dep'
+        OrEarlierVersion prev -> do
+          let ver' = orEarlierVersion latest
+          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
+          pure $ modifyDep cabalFile pk dep'
+        EarlierVersion prev -> do
+          let ver' = orEarlierVersion latest
+          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
+          pure $ modifyDep cabalFile pk dep'
+        VersionRangeParens _ -> replaceVersion dep
+        IntersectVersionRanges _ _ -> replaceVersion dep
+        UnionVersionRanges _ _ -> replaceVersion dep
+        MajorBoundVersion prev -> do
+          let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
+          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
+          pure $ modifyDep cabalFile pk dep'
+  where
+    replaceVersion dep = do
+      let dep' = Dependency (depPkgName dep) (majorBoundVersion latest) (depLibraries dep)
+      pure $ modifyDep cabalFile pk dep'
 
 addVer ::
   (Version -> VersionRange) ->
@@ -188,6 +221,9 @@ addVer f givenVersion (fname, cabalFile) dep = do
 -------------------------------------------------------------------------------
 -- Version Cache
 -------------------------------------------------------------------------------
+
+cacheFile :: FilePath
+cacheFile = ".cabal-cache.db"
 
 cacheDeps :: IO (Map PackageName [Version])
 cacheDeps = do
@@ -215,9 +251,6 @@ buildCache = do
   let db = Map.fromList vers
   BS.writeFile cache (encode db)
   pure db
-
-cacheFile :: FilePath
-cacheFile = ".cabal-cache.db"
 
 cacheDb :: IO FilePath
 cacheDb = do
@@ -249,7 +282,7 @@ addCmd packName = do
     Just dep -> pure dep
   (fname, cabalFile) <- getCabal
   cabalFile' <- add dep (fname, cabalFile)
-  hasLib cabalFile
+  --hasLib cabalFile
   writeGenericPackageDescription fname cabalFile'
 
 upgradeCmd :: String -> IO ()
@@ -266,8 +299,11 @@ upgradeCmd packName = do
   case lookupDep cabalFile pk of
     Nothing -> die $ "No current dependency on: " ++ show pk
     Just dep -> do
-      print latestVer
-      print (depMap cabalFile)
+      let ver' = majorUpperBound latestVer
+      putStrLn $ "Upgrading bounds for " ++ prettyShow pk ++ " to " ++ prettyShow ver'
+      --traverse (putStrLn . prettyShow) (depMap cabalFile)
+      cabalFile' <- upgrade pk ver' (fname, cabalFile)
+      writeGenericPackageDescription fname cabalFile'
 
 removeCmd :: String -> IO ()
 removeCmd packName = do

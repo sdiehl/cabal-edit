@@ -9,6 +9,7 @@ remove, and upgrade dependencies by modifying your cabal file from the
 command line. This behaves similar to  `install --save` commands in other
 package managers.
 
+
 * `cabal-edit add`
 * `cabal-edit list`
 * `cabal-edit upgrade`
@@ -16,6 +17,11 @@ package managers.
 * `cabal-edit extensions`
 * `cabal-edit format`
 * `cabal-edit rebuild`
+
+Usage
+-----
+
+**cabal-edit add**
 
 For example to setup a new project one often wants to add common dependencies
 like `text` and `aeson`. We can use `cabal-edit` to automatically append these
@@ -37,6 +43,45 @@ explicitly as an argument.
 ```bash
 $ cabal-edit add aeson==1.4.0.0
 ```
+
+**cabal-edit ugprade**
+
+The ugprade command can be used to safely manipulate the version bounds for a
+given library. For instance if one has the simple Cabal with a dependency on
+`text` for `1.0` version range.:
+
+
+```haskell
+library
+    exposed-modules:  MyLib
+    default-language: Haskell2010
+    build-depends:
+        base >= 4.14 && <=5.0,
+        text ^>= 1.0
+```
+
+We can bump the bound of this library to upgrade it to allow the latest version
+from Hackage. We simply pass the `upgrade` command the name of the package (i.e.
+`text`) and it will automatically figure out the appropriate version range for
+the upgrade including previously version ranges.
+
+```bash
+$ cabal-edit upgrade text
+Upgrading bounds for text to 1.3
+```
+
+This will produce the following modified Cabal file.
+
+```haskell
+library
+    exposed-modules:  MyLib
+    default-language: Haskell2010
+    build-depends:
+        base >=4.14 && <=5.0,
+        text >=1.0 && <=1.3
+```
+
+**cabal-edit list**
 
 The Hackage database can be queried from the command line to search for all
 available versions to use with the `list` command.
@@ -62,6 +107,8 @@ $ cabal-edit list filepath
 1.4.2.1
 ```
 
+**cabal-edit format**
+
 The `format` command will canonicalise the Cabal into by parsing it and running
 it through the pretty printer again.
 
@@ -76,6 +123,8 @@ cabal may be added in the future.
 
 [cabal-fmt]: https://github.com/phadej/cabal-fmt
 
+
+**cabal-edit extensions**
 
 The `extensions` command will enumerate all the default extensions enabled for
 the given library. This is useful if you wish to add these headers to files
