@@ -52,24 +52,12 @@ addDep dep pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condL
     go (CondNode var@Library {..} deps libs) =
       CondNode (var {libBuildInfo = addLibDep dep libBuildInfo}) (deps <> [dep]) libs
 
-addLibDep ::
-  Dependency ->
-  BuildInfo ->
-  BuildInfo
-addLibDep dep binfo@BuildInfo {..} = binfo {targetBuildDepends = targetBuildDepends <> [dep]}
-
-setLibDeps ::
-  [Dependency] ->
-  BuildInfo ->
-  BuildInfo
-setLibDeps deps binfo@BuildInfo {} = binfo {targetBuildDepends = deps}
-
 getDeps ::
   GenericPackageDescription ->
   [Dependency]
-getDeps GenericPackageDescription {..} = concat (maybeToList (fmap go condLibrary))
+getDeps pkg = concat (maybeToList depends)
   where
-    go (CondNode Library {..} _ _) = targetBuildDepends libBuildInfo
+    depends = fmap targetBuildDepends (buildInfo pkg)
 
 setDeps ::
   [Dependency] ->
@@ -86,10 +74,34 @@ modifyDeps ::
   GenericPackageDescription
 modifyDeps f pkg = setDeps [f (depPkgName dep) dep | dep <- getDeps pkg] pkg
 
+-------------------------------------------------------------------------------
+-- Library Manipulation
+-------------------------------------------------------------------------------
+
 buildInfo :: GenericPackageDescription -> Maybe BuildInfo
 buildInfo GenericPackageDescription {..} = fmap go condLibrary
   where
     go (CondNode Library {..} _ _) = libBuildInfo
+
+setBuildInfo ::
+  BuildInfo ->
+  GenericPackageDescription ->
+  GenericPackageDescription
+setBuildInfo binfo pkg@GenericPackageDescription {..} = pkg {condLibrary = fmap go condLibrary}
+  where
+    go (CondNode var deps libs) = CondNode (var {libBuildInfo = binfo}) deps libs
+
+addLibDep ::
+  Dependency ->
+  BuildInfo ->
+  BuildInfo
+addLibDep dep binfo@BuildInfo {..} = binfo {targetBuildDepends = targetBuildDepends <> [dep]}
+
+setLibDeps ::
+  [Dependency] ->
+  BuildInfo ->
+  BuildInfo
+setLibDeps deps binfo@BuildInfo {} = binfo {targetBuildDepends = deps}
 
 hasLib :: GenericPackageDescription -> IO ()
 hasLib pkg =
@@ -250,12 +262,12 @@ upgradeCmd packName = do
     Nothing -> die $ "No such named: " ++ show pk
     Just vers -> pure (maximum vers)
   (fname, cabalFile) <- getCabal
-  hasLib cabalFile
+  --hasLib cabalFile
   case lookupDep cabalFile pk of
     Nothing -> die $ "No current dependency on: " ++ show pk
     Just dep -> do
       print latestVer
-      print dep
+      print (depMap cabalFile)
 
 removeCmd :: String -> IO ()
 removeCmd packName = do
