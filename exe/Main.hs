@@ -86,19 +86,39 @@ modifyDeps ::
   GenericPackageDescription
 modifyDeps f pkg = setDeps [f (depPkgName dep) dep | dep <- getDeps pkg] pkg
 
-lookupDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
-lookupDep pkg pk = Data.List.lookup pk [(depPkgName dep, dep) | dep <- getDeps pkg]
-
 buildInfo :: GenericPackageDescription -> Maybe BuildInfo
 buildInfo GenericPackageDescription {..} = fmap go condLibrary
   where
-    go (CondNode var@Library {..} deps libs) = libBuildInfo
+    go (CondNode Library {..} _ _) = libBuildInfo
 
 hasLib :: GenericPackageDescription -> IO ()
 hasLib pkg =
   if hasLibs (packageDescription pkg)
     then pure ()
     else die "Package has no public library. Cannot modify dependencies."
+
+-------------------------------------------------------------------------------
+-- DepMap
+-------------------------------------------------------------------------------
+
+udpateDep ::
+  GenericPackageDescription ->
+  (PackageName -> Dependency -> Maybe Dependency) ->
+  PackageName ->
+  Map PackageName Dependency
+udpateDep pkg f pk = Map.updateWithKey f pk (depMap pkg)
+
+lookupDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
+lookupDep pkg pk = Map.lookup pk (depMap pkg)
+
+modifyDep :: GenericPackageDescription -> PackageName -> Maybe Dependency
+modifyDep pkg pk = Map.lookup pk (depMap pkg)
+
+setDepMap :: Map.Map PackageName Dependency -> GenericPackageDescription -> GenericPackageDescription
+setDepMap pkm = setDeps (fmap snd (Map.toList pkm))
+
+depMap :: GenericPackageDescription -> Map.Map PackageName Dependency
+depMap pkg = Map.fromList [(depPkgName dep, dep) | dep <- getDeps pkg]
 
 -------------------------------------------------------------------------------
 -- Dependency Addition
