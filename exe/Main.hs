@@ -160,13 +160,20 @@ upgrade ::
   IO GenericPackageDescription
 upgrade pk latest (_, cabalFile) = do
   case lookupDep cabalFile pk of
-    Nothing -> die $ "No current dependency on: " ++ show pk
+    Nothing -> do
+      putStrLn $ "No current dependency on: " ++ prettyShow pk
+      die $ "Perhaps you want to run: cabal-edit add " ++ prettyShow pk
     Just dep -> do
       case depVerRange dep of
-        LaterVersion prev -> do
-          let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
-          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
-          pure $ modifyDep cabalFile pk dep'
+        LaterVersion prev ->
+          if prev < latest
+            then do
+              let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
+              let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
+              pure $ modifyDep cabalFile pk dep'
+            else do
+              putStrLn "Previous version is inconsistent, replacing lower bound."
+              replaceVersion dep
         OrLaterVersion prev -> do
           let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
           let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
@@ -177,13 +184,26 @@ upgrade pk latest (_, cabalFile) = do
         OrEarlierVersion _ -> replaceVersion dep
         EarlierVersion _ -> replaceVersion dep
         VersionRangeParens _ -> replaceVersion dep
-        IntersectVersionRanges _ _ -> replaceVersion dep
+        IntersectVersionRanges lower _ -> do
+          if extractLower lower < latest
+            then do
+              let ver' = intersectVersionRanges lower (orEarlierVersion latest)
+              let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
+              pure $ modifyDep cabalFile pk dep'
+            else replaceVersion dep
         UnionVersionRanges _ _ -> replaceVersion dep
         MajorBoundVersion prev -> do
-          let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
-          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
-          pure $ modifyDep cabalFile pk dep'
+          if prev < latest
+            then do
+              let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
+              let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
+              pure $ modifyDep cabalFile pk dep'
+            else replaceVersion dep
   where
+    extractLower :: VersionRange -> Version
+    extractLower (LaterVersion ver) = ver
+    extractLower (OrLaterVersion ver) = ver
+    extractLower _ = version0
     replaceVersion dep = do
       let dep' = Dependency (depPkgName dep) (majorBoundVersion latest) (depLibraries dep)
       pure $ modifyDep cabalFile pk dep'
@@ -315,6 +335,7 @@ upgradeAllCmd = do
       Just vers -> pure (maximum vers)
     let ver' = majorUpperBound latestVer
     putStrLn $ "Upgrading bounds for " ++ prettyShow pk ++ " to " ++ prettyShow ver'
+    cabalFile <- readGenericPackageDescription normal fname
     cabalFile' <- upgrade pk ver' (fname, cabalFile)
     writeGenericPackageDescription fname cabalFile'
 

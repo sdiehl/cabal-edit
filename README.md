@@ -50,8 +50,8 @@ file, and not the executable sections.*
 ### upgrade
 
 The upgrade command can be used to safely manipulate the version bounds for a
-given library. For instance if one has the simple Cabal with a dependency on
-`text` for `1.0` version range.:
+given library. For instance if one has a simple dependency on `text` for `1.0`
+version range, like as follows:
 
 
 ```haskell
@@ -66,7 +66,8 @@ library
 We can bump the bound of this library to upgrade it to allow the latest version
 from Hackage. We simply pass the `upgrade` command the name of the package (i.e.
 `text`) and it will automatically figure out the appropriate version range for
-the upgrade including previously version ranges.
+the upgrade including previously version ranges. The resulting version ranges
+will always have an upper bound and will conform to Hackage PVP standards.
 
 ```bash
 $ cabal-edit upgrade text
