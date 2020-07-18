@@ -141,7 +141,7 @@ add dep (fname, cabalFile) =
       verMap <- cacheDeps
       -- Lookup the latest version and use the majorBound of it.
       ver <- case Map.lookup pk verMap of
-        Nothing -> die $ "No such named: " ++ show pk
+        Nothing -> die $ "No such package named: " ++ show pk
         Just vers -> pure (maximum vers)
       let dependency = Dependency pk (majorBoundVersion (majorUpperBound ver)) (Set.singleton defaultLibName)
       putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
@@ -158,14 +158,11 @@ upgrade ::
   Version ->
   (FilePath, GenericPackageDescription) ->
   IO GenericPackageDescription
-upgrade pk latest (fname, cabalFile) = do
+upgrade pk latest (_, cabalFile) = do
   case lookupDep cabalFile pk of
-    Nothing -> pure cabalFile
+    Nothing -> die $ "No current dependency on: " ++ show pk
     Just dep -> do
       case depVerRange dep of
-        AnyVersion -> replaceVersion dep
-        WildcardVersion prev -> replaceVersion dep
-        ThisVersion prev -> replaceVersion dep
         LaterVersion prev -> do
           let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
           let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
@@ -174,14 +171,11 @@ upgrade pk latest (fname, cabalFile) = do
           let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
           let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
           pure $ modifyDep cabalFile pk dep'
-        OrEarlierVersion prev -> do
-          let ver' = orEarlierVersion latest
-          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
-          pure $ modifyDep cabalFile pk dep'
-        EarlierVersion prev -> do
-          let ver' = orEarlierVersion latest
-          let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
-          pure $ modifyDep cabalFile pk dep'
+        AnyVersion -> replaceVersion dep
+        WildcardVersion _ -> replaceVersion dep
+        ThisVersion _ -> replaceVersion dep
+        OrEarlierVersion _ -> replaceVersion dep
+        EarlierVersion _ -> replaceVersion dep
         VersionRangeParens _ -> replaceVersion dep
         IntersectVersionRanges _ _ -> replaceVersion dep
         UnionVersionRanges _ _ -> replaceVersion dep
@@ -198,10 +192,10 @@ remove ::
   PackageName ->
   (FilePath, GenericPackageDescription) ->
   IO GenericPackageDescription
-remove pk (fname, cabalFile) = do
+remove pk (_, cabalFile) = do
   case lookupDep cabalFile pk of
-    Nothing -> pure cabalFile
-    Just dep -> pure $ deleteDep cabalFile pk
+    Nothing -> die $ "No dependency on:  " ++ show pk
+    Just _ -> pure $ deleteDep cabalFile pk
 
 addVer ::
   (Version -> VersionRange) ->
@@ -303,7 +297,7 @@ upgradeCmd packName = do
   --hasLib cabalFile
   case lookupDep cabalFile pk of
     Nothing -> die $ "No current dependency on: " ++ show pk
-    Just dep -> do
+    Just _ -> do
       let ver' = majorUpperBound latestVer
       putStrLn $ "Upgrading bounds for " ++ prettyShow pk ++ " to " ++ prettyShow ver'
       --traverse (putStrLn . prettyShow) (depMap cabalFile)
@@ -329,15 +323,11 @@ removeCmd packName = do
   pk <- case (simpleParsec packName :: Maybe PackageName) of
     Nothing -> die "Invalid package name."
     Just pk -> pure pk
-  verMap <- cacheDeps
-  latestVer <- case Map.lookup pk verMap of
-    Nothing -> die $ "No such named: " ++ show pk
-    Just vers -> pure (maximum vers)
   (fname, cabalFile) <- getCabal
   case lookupDep cabalFile pk of
     Nothing -> die $ "No current dependency on: " ++ show pk
-    Just dep -> do
-      putStrLn $ "Removing depndency on " ++ prettyShow pk
+    Just _ -> do
+      putStrLn $ "Removing dependency on " ++ prettyShow pk
       cabalFile' <- remove pk (fname, cabalFile)
       writeGenericPackageDescription fname cabalFile'
 
@@ -349,7 +339,7 @@ extensionsCmd = do
   (fname, cabalFile) <- getCabal
   let extensions = fmap defaultExtensions (buildInfo cabalFile)
   case extensions of
-    Nothing -> putStrLn "No default extensions"
+    Nothing -> putStrLn $ "No default extensions in " ++ takeFileName fname
     Just exts -> mapM_ (putStrLn . showExt) exts
   where
     showExt ext = "{-# LANGUAGE " ++ prettyShow ext ++ " #-}"
