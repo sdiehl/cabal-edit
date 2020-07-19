@@ -344,6 +344,18 @@ listCmd packName = do
     Just vers -> pure (sort vers)
   mapM_ (putStrLn . prettyShow) vers
 
+latestCmd :: String -> IO ()
+latestCmd packName = do
+  pk <- case (simpleParsec packName :: Maybe PackageName) of
+    Nothing -> die "Invalid package name."
+    Just pk -> pure pk
+  verMap <- cacheDeps
+  latest <- case Map.lookup pk verMap of
+    Nothing -> die $ "No such named: " ++ show pk
+    Just vers -> pure (maximum vers)
+  let dependency = Dependency pk (majorBoundVersion (majorBound latest)) (Set.singleton defaultLibName)
+  putStrLn (prettyShow dependency)
+
 addCmd :: [String] -> IO ()
 addCmd packNames = mapM_ addSingle packNames
 
@@ -477,6 +489,7 @@ data Cmd
   | Upgrade String
   | UpgradeAll
   | Remove String
+  | Latest String
   | Format
   | Rebuild
   | Extensions
@@ -500,6 +513,9 @@ upgradeParse localPackages = Upgrade <$> argument str (metavar "PACKAGE" <> comp
 removeParse :: [String] -> Parser Cmd
 removeParse localPackages = Remove <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
 
+latestParse :: [String] -> Parser Cmd
+latestParse localPackages = Latest <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
+
 opts :: [String] -> Parser Cmd
 opts localPackages =
   subparser $
@@ -508,6 +524,7 @@ opts localPackages =
         command "list" (info (listParse localPackages) (progDesc "List available versions from Hackage.")),
         command "upgrade" (info (upgradeParse localPackages) (progDesc "Upgrade bounds for given package.")),
         command "remove" (info (removeParse localPackages) (progDesc "Remove a given package.")),
+        command "latest" (info (latestParse localPackages) (progDesc "Get the latest version of a given package.")),
         command "rebuild" (info (pure Rebuild) (progDesc "Rebuild cache.")),
         command "upgradeall" (info (pure UpgradeAll) (progDesc "Upgrade all dependencies.")),
         command "format" (info (pure Format) (progDesc "Format cabal file.")),
@@ -527,6 +544,7 @@ main = do
     Remove dep -> removeCmd dep
     Format -> formatCmd
     Rebuild -> rebuildCmd
+    Latest dep -> latestCmd dep
     Extensions -> extensionsCmd
     UpgradeAll -> upgradeAllCmd
     Lint -> lintCmd

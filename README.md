@@ -47,7 +47,7 @@ $ cabal-edit add aeson==1.4.0.0
 Multiple packages can be passed to the add command at once. For example:
 
 ```bash
-cabal-edit add bytestring aeson text base process filepath directory
+$ cabal-edit add bytestring aeson text base process filepath directory
 Adding latest dependency: bytestring ^>=0.10 to sample.cabal
 Adding latest dependency: aeson ^>=1.5 to sample.cabal
 Adding latest dependency: text ^>=1.2 to sample.cabal
@@ -188,6 +188,16 @@ recommend package upgrades when available.
 $ cabal-edit lint 
 aeson : Consider upgrading major bound to latest version 1.6
 text : Consider upgrading major bound to latest version 1.3
+```
+
+### latest
+
+The `latest` command will return the dependency string for adding the latest
+version of a given package.
+
+```bash
+$ cabal-edit latest aeson
+aeson ^>=1.5
 ```
 
 ### rebuild
