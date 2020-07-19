@@ -158,7 +158,7 @@ upgrade ::
   Version ->
   (FilePath, GenericPackageDescription) ->
   IO GenericPackageDescription
-upgrade pk latest (_, cabalFile) = do
+upgrade pk latest (_, cabalFile) =
   case lookupDep cabalFile pk of
     Nothing -> do
       putStrLn $ "No current dependency on: " ++ prettyShow pk
@@ -212,7 +212,7 @@ remove ::
   PackageName ->
   (FilePath, GenericPackageDescription) ->
   IO GenericPackageDescription
-remove pk (_, cabalFile) = do
+remove pk (_, cabalFile) =
   case lookupDep cabalFile pk of
     Nothing -> die $ "No dependency on:  " ++ show pk
     Just _ -> pure $ deleteDep cabalFile pk
@@ -284,7 +284,7 @@ cacheDb = do
 -------------------------------------------------------------------------------
 
 lint :: Bool -> (PackageName, Dependency, Version) -> IO ()
-lint fix (pk, dep, latest) = do
+lint fix (pk, dep, latest) =
   case depVerRange dep of
     AnyVersion -> putStrLn $ prettyShow pk ++ " : " ++ "Wildcard version detected. Instead use explicit version bounds."
     ThisVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "Explicit version detected. Considering allowing a range."
@@ -317,13 +317,10 @@ lint fix (pk, dep, latest) = do
     VersionRangeParens _ -> pure ()
 
 lintRange :: PackageName -> Version -> Version -> Version -> IO ()
-lintRange pk lower upper latest =
-  if lower >= upper
-    then putStrLn $ prettyShow pk ++ " : " ++ "Lower bound is greater or equal to than upper bound. Reverse bounds."
-    else
-      if upper < latest
-        then putStrLn $ prettyShow pk ++ " : " ++ "Consider upgrading upper bound to latest version " ++ prettyShow latest
-        else pure ()
+lintRange pk lower upper latest
+  | lower >= upper = putStrLn $ prettyShow pk ++ " : " ++ "Lower bound is greater or equal to than upper bound. Reverse bounds."
+  | upper < latest = putStrLn $ prettyShow pk ++ " : " ++ "Consider upgrading upper bound to latest version " ++ prettyShow latest
+  | otherwise = pure ()
 
 -------------------------------------------------------------------------------
 -- Commands
