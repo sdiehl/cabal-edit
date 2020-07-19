@@ -299,11 +299,11 @@ lint fix (pk, dep, latest) =
     OrLaterVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "No upper bound detected. Add an upper bound."
     EarlierVersion ver ->
       case versionNumbers ver of
-        (1 : xs) -> pure ()
+        (1 : _) -> pure ()
         _ -> putStrLn $ prettyShow pk ++ " : " ++ "Upper bound only for package with >1.0 admits all previous versions. Add a lower bound to major version."
     OrEarlierVersion ver ->
       case versionNumbers ver of
-        (1 : xs) -> pure ()
+        (1 : _) -> pure ()
         _ -> putStrLn $ prettyShow pk ++ " : " ++ "Upper bound only for package with >1.0 admits all previous versions. Add a lower bound to major version."
     WildcardVersion ver ->
       if Data.List.length (versionNumbers ver) > 2
@@ -357,7 +357,7 @@ latestCmd packName = do
   putStrLn (prettyShow dependency)
 
 addCmd :: [String] -> IO ()
-addCmd packNames = mapM_ addSingle packNames
+addCmd = mapM_ addSingle
 
 addSingle :: String -> IO ()
 addSingle packName = do

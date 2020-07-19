@@ -38,4 +38,4 @@ executable cabal-edit
     , optparse-applicative  ^>=0.15
     , process               ^>=1.6
     , store                 ^>=0.7
-    , time                  >=1.6  && <1.11
+    , time                  >=1.8  && <1.11
