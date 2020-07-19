@@ -44,6 +44,19 @@ explicitly as an argument.
 $ cabal-edit add aeson==1.4.0.0
 ```
 
+Multiple packages can be passed to the add command at once. For example:
+
+```bash
+cabal-edit add bytestring aeson text base process filepath directory
+Adding latest dependency: bytestring ^>=0.10 to sample.cabal
+Adding latest dependency: aeson ^>=1.5 to sample.cabal
+Adding latest dependency: text ^>=1.2 to sample.cabal
+Adding latest dependency: base ^>=4.14 to sample.cabal
+Adding latest dependency: process ^>=1.6 to sample.cabal
+Adding latest dependency: filepath ^>=1.4 to sample.cabal
+Adding latest dependency: directory ^>=1.3 to sample.cabal
+```
+
 *Note: Dependency modification will happen over the library stanza of your Cabal
 file, and not the executable sections.*
 
@@ -146,13 +159,6 @@ $ cabal-edit format
 Formatting: sample.cabal
 ```
 
-You may then wish to then run [cabal-fmt] on the outputted file to canonicalise
-it further and layout the dependency table.  Auto-formatting of the outputted
-cabal may be added in the future.
-
-[cabal-fmt]: https://github.com/phadej/cabal-fmt
-
-
 ### extensions
 
 The `extensions` command will enumerate all the default extensions enabled for
@@ -171,6 +177,17 @@ $ cabal-edit extensions
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+```
+
+### lint
+
+The `lint` command will detect common problems with your version bounds and
+recommend package upgrades when available.
+
+```bash
+$ cabal-edit lint 
+aeson : Consider upgrading major bound to latest version 1.6
+text : Consider upgrading major bound to latest version 1.3
 ```
 
 ### rebuild

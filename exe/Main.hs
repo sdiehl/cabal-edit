@@ -38,6 +38,7 @@ import System.Directory
 import System.Exit
 import System.FilePath.Glob
 import System.FilePath.Posix
+import System.Process
 
 -------------------------------------------------------------------------------
 -- Library Manipulation
@@ -130,6 +131,12 @@ depMap pkg = Map.fromList [(depPkgName dep, dep) | dep <- getDeps pkg]
 -- Dependency Addition
 -------------------------------------------------------------------------------
 
+majorBound :: Version -> Version
+majorBound = alterVersion $ \numbers -> case numbers of
+  [] -> [0, 1]
+  [m1] -> [m1]
+  (m1 : m2 : _) -> [m1, m2]
+
 add ::
   Dependency ->
   (FilePath, GenericPackageDescription) ->
@@ -143,7 +150,7 @@ add dep (fname, cabalFile) =
       ver <- case Map.lookup pk verMap of
         Nothing -> die $ "No such package named: " ++ show pk
         Just vers -> pure (maximum vers)
-      let dependency = Dependency pk (majorBoundVersion (majorUpperBound ver)) (Set.singleton defaultLibName)
+      let dependency = Dependency pk (majorBoundVersion (majorBound ver)) (Set.singleton defaultLibName)
       putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
       pure $ modifyDep cabalFile pk dependency
     ThisVersion givenVersion -> addVer ThisVersion givenVersion (fname, cabalFile) dep
@@ -305,7 +312,7 @@ lint fix (pk, dep, latest) =
     MajorBoundVersion ver ->
       if majorUpperBound ver == majorUpperBound latest
         then pure ()
-        else putStrLn $ prettyShow pk ++ " : " ++ "Consider major bound to latest version " ++ prettyShow (majorUpperBound latest)
+        else putStrLn $ prettyShow pk ++ " : " ++ "Consider ugprading major bound to latest version " ++ prettyShow (majorBound latest)
     UnionVersionRanges _ _ -> pure ()
     IntersectVersionRanges lower upper ->
       case (lower, upper) of
@@ -337,8 +344,11 @@ listCmd packName = do
     Just vers -> pure (sort vers)
   mapM_ (putStrLn . prettyShow) vers
 
-addCmd :: String -> IO ()
-addCmd packName = do
+addCmd :: [String] -> IO ()
+addCmd packNames = mapM_ addSingle packNames
+
+addSingle :: String -> IO ()
+addSingle packName = do
   dep <- case (simpleParsec packName :: Maybe Dependency) of
     Nothing -> die "Invalid dependency version number."
     Just dep -> pure dep
@@ -346,6 +356,7 @@ addCmd packName = do
   cabalFile' <- add dep (fname, cabalFile)
   --hasLib cabalFile
   writeGenericPackageDescription fname cabalFile'
+  formatCabalFile fname
 
 upgradeCmd :: String -> IO ()
 upgradeCmd packName = do
@@ -366,6 +377,7 @@ upgradeCmd packName = do
       --traverse (putStrLn . prettyShow) (depMap cabalFile)
       cabalFile' <- upgrade pk ver' (fname, cabalFile)
       writeGenericPackageDescription fname cabalFile'
+  formatCabalFile fname
 
 upgradeAllCmd :: IO ()
 upgradeAllCmd = do
@@ -381,6 +393,7 @@ upgradeAllCmd = do
     cabalFile <- readGenericPackageDescription normal fname
     cabalFile' <- upgrade pk ver' (fname, cabalFile)
     writeGenericPackageDescription fname cabalFile'
+  formatCabalFile fname
 
 lintCmd :: IO ()
 lintCmd = do
@@ -405,6 +418,7 @@ removeCmd packName = do
       putStrLn $ "Removing dependency on " ++ prettyShow pk
       cabalFile' <- remove pk (fname, cabalFile)
       writeGenericPackageDescription fname cabalFile'
+  formatCabalFile fname
 
 rebuildCmd :: IO ()
 rebuildCmd = buildCache >> putStrLn "Done."
@@ -424,6 +438,7 @@ formatCmd = do
   (fname, cabalFile) <- getCabal
   putStrLn $ "Formatting: " ++ takeFileName fname
   writeGenericPackageDescription fname cabalFile
+  formatCabalFile fname
 
 getCabal :: IO (FilePath, GenericPackageDescription)
 getCabal = do
@@ -434,6 +449,13 @@ getCabal = do
       pkg <- readGenericPackageDescription normal fname
       pure (fname, pkg)
     _ -> die "Multiple cabal-files found."
+
+formatCabalFile :: FilePath -> IO ()
+formatCabalFile fpath = do
+  mexe <- findExecutable "cabal-fmt"
+  case mexe of
+    Just _ -> callCommand $ "cabal-fmt --inplace " ++ fpath
+    Nothing -> pure ()
 
 -------------------------------------------------------------------------------
 -- Orphan Sinbin
@@ -450,7 +472,7 @@ instance Store Version
 -------------------------------------------------------------------------------
 
 data Cmd
-  = Add String
+  = Add [String]
   | List String
   | Upgrade String
   | UpgradeAll
@@ -467,7 +489,7 @@ completerPacks = do
   pure (unPackageName <$> Map.keys db)
 
 addParse :: [String] -> Parser Cmd
-addParse localPackages = Add <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
+addParse localPackages = Add <$> many (argument str (metavar "PACKAGE" <> completeWith localPackages))
 
 listParse :: [String] -> Parser Cmd
 listParse localPackages = List <$> argument str (metavar "PACKAGE" <> completeWith localPackages)
@@ -499,7 +521,7 @@ main = do
   let options = info (opts comps <**> helper) idm
   cmd <- customExecParser p options
   case cmd of
-    Add dep -> addCmd dep
+    Add deps -> addCmd deps
     List dep -> listCmd dep
     Upgrade dep -> upgradeCmd dep
     Remove dep -> removeCmd dep
