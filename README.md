@@ -50,14 +50,17 @@ $ cabal-edit add aeson==1.4.0.0
 Multiple packages can be passed to the add command at once. For example:
 
 ```bash
-$ cabal-edit add bytestring aeson text base process filepath directory
+$ cabal-edit add base bytestring aeson text process filepath directory mtl transformers protolude
+Adding latest dependency: base ^>=4.14 to sample.cabal
 Adding latest dependency: bytestring ^>=0.10 to sample.cabal
 Adding latest dependency: aeson ^>=1.5 to sample.cabal
 Adding latest dependency: text ^>=1.2 to sample.cabal
-Adding latest dependency: base ^>=4.14 to sample.cabal
 Adding latest dependency: process ^>=1.6 to sample.cabal
 Adding latest dependency: filepath ^>=1.4 to sample.cabal
 Adding latest dependency: directory ^>=1.3 to sample.cabal
+Adding latest dependency: mtl ^>=2.2 to sample.cabal
+Adding latest dependency: transformers ^>=0.5 to sample.cabal
+Adding latest dependency: protolude ^>=0.3 to sample.cabal
 ```
 
 *Note: Dependency modification will happen over the library stanza of your Cabal
