@@ -10,13 +10,16 @@ command line. This behaves similar to  `install --save` commands in other
 package managers.
 
 
-* `cabal-edit add`
-* `cabal-edit list`
-* `cabal-edit upgrade`
-* `cabal-edit remove`
-* `cabal-edit extensions`
-* `cabal-edit format`
-* `cabal-edit rebuild`
+* [`cabal-edit add`](#add)
+* [`cabal-edit upgrade`](#upgrade)
+* [`cabal-edit upgradeall`](#upgradeall)
+* [`cabal-edit remove`](#remove)
+* [`cabal-edit list`](#list)
+* [`cabal-edit format`](#format)
+* [`cabal-edit extensions`](#extensions)
+* [`cabal-edit lint`](#lint)
+* [`cabal-edit latest`](#latest)
+* [`cabal-edit rebuild`](#rebuild)
 
 Usage
 -----
