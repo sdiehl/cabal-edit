@@ -280,6 +280,52 @@ cacheDb = do
     else die "No ~/.cabal directory found. Is cabal installed?"
 
 -------------------------------------------------------------------------------
+-- Version Linting
+-------------------------------------------------------------------------------
+
+lint :: Bool -> (PackageName, Dependency, Version) -> IO ()
+lint fix (pk, dep, latest) = do
+  case depVerRange dep of
+    AnyVersion -> putStrLn $ prettyShow pk ++ " : " ++ "Wildcard version detected. Instead use explicit version bounds."
+    ThisVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "Explicit version detected. Considering allowing a range."
+    LaterVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "No upper bound detected. Add an upper bound."
+    OrLaterVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "No upper bound detected. Add an upper bound."
+    EarlierVersion ver ->
+      case versionNumbers ver of
+        (1 : xs) -> pure ()
+        _ -> putStrLn $ prettyShow pk ++ " : " ++ "Upper bound only for package with >1.0 admits all previous versions. Add a lower bound to major version."
+    OrEarlierVersion ver ->
+      case versionNumbers ver of
+        (1 : xs) -> pure ()
+        _ -> putStrLn $ prettyShow pk ++ " : " ++ "Upper bound only for package with >1.0 admits all previous versions. Add a lower bound to major version."
+    WildcardVersion ver ->
+      if Data.List.length (versionNumbers ver) > 2
+        then putStrLn $ prettyShow pk ++ " : " ++ "Wildcard on minor version, consider rewriting wildcard to major version n.x"
+        else pure ()
+    MajorBoundVersion ver ->
+      if majorUpperBound ver == majorUpperBound latest
+        then pure ()
+        else putStrLn $ prettyShow pk ++ " : " ++ "Consider major bound to latest version " ++ prettyShow (majorUpperBound latest)
+    UnionVersionRanges _ _ -> pure ()
+    IntersectVersionRanges lower upper ->
+      case (lower, upper) of
+        (LaterVersion lower, EarlierVersion upper) -> lintRange pk lower upper latest
+        (OrLaterVersion lower, EarlierVersion upper) -> lintRange pk lower upper latest
+        (LaterVersion lower, OrEarlierVersion upper) -> lintRange pk lower upper latest
+        (OrLaterVersion lower, OrEarlierVersion upper) -> lintRange pk lower upper latest
+        _ -> putStrLn $ prettyShow pk ++ " : " ++ "Upper and lower bounds for range are inconsistent."
+    VersionRangeParens _ -> pure ()
+
+lintRange :: PackageName -> Version -> Version -> Version -> IO ()
+lintRange pk lower upper latest =
+  if lower >= upper
+    then putStrLn $ prettyShow pk ++ " : " ++ "Lower bound is greater or equal to than upper bound. Reverse bounds."
+    else
+      if upper < latest
+        then putStrLn $ prettyShow pk ++ " : " ++ "Consider upgrading upper bound to latest version " ++ prettyShow latest
+        else pure ()
+
+-------------------------------------------------------------------------------
 -- Commands
 -------------------------------------------------------------------------------
 
@@ -338,6 +384,17 @@ upgradeAllCmd = do
     cabalFile <- readGenericPackageDescription normal fname
     cabalFile' <- upgrade pk ver' (fname, cabalFile)
     writeGenericPackageDescription fname cabalFile'
+
+lintCmd :: IO ()
+lintCmd = do
+  verMap <- cacheDeps
+  (fname, cabalFile) <- getCabal
+  let pks = Map.toList $ depMap cabalFile
+  forM_ pks $ \(pk, dep) -> do
+    latestVer <- case Map.lookup pk verMap of
+      Nothing -> die $ "No such named: " ++ show pk
+      Just vers -> pure (maximum vers)
+    lint False (pk, dep, latestVer)
 
 removeCmd :: String -> IO ()
 removeCmd packName = do
@@ -404,6 +461,7 @@ data Cmd
   | Format
   | Rebuild
   | Extensions
+  | Lint
   deriving (Eq, Show)
 
 completerPacks :: IO [String]
@@ -434,7 +492,8 @@ opts localPackages =
         command "rebuild" (info (pure Rebuild) (progDesc "Rebuild cache.")),
         command "upgradeall" (info (pure UpgradeAll) (progDesc "Upgrade all dependencies.")),
         command "format" (info (pure Format) (progDesc "Format cabal file.")),
-        command "extensions" (info (pure Extensions) (progDesc "List all default language extensions pragmas."))
+        command "extensions" (info (pure Extensions) (progDesc "List all default language extensions pragmas.")),
+        command "lint" (info (pure Lint) (progDesc "Lint dependency bounds."))
       ]
 
 main :: IO ()
@@ -451,5 +510,6 @@ main = do
     Rebuild -> rebuildCmd
     Extensions -> extensionsCmd
     UpgradeAll -> upgradeAllCmd
+    Lint -> lintCmd
   where
     p = prefs showHelpOnEmpty
