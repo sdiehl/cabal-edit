@@ -6,7 +6,7 @@ license-file:       LICENSE
 copyright:          2020 Stephen Diehl
 maintainer:         stephen.m.diehl@gmail.com
 author:             sdiehl
-bug-reports:        https:/www.github.com/sdiehl/cabal-add/issues
+bug-reports:        https://github.com/sdiehl/cabal-edit/issues
 synopsis:           Cabal utility
 description:
   A utility for managing Hackage dependencies from the command line.
