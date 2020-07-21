@@ -342,6 +342,23 @@ end
 complete --no-files --command cabal-edit --arguments '(_cabal-edit)'
 ```
 
+Limitations
+-----------
+
+Since this library works directly with the `PackageDescription` data structure
+it cannot handle Cabal files in their full generality. Instead we directly
+manipulate the internal structure used to represent the Cabal file which is not
+capable of representing all surface constructs. If your Cabal file currently
+uses:
+
+* Common stanzas
+* Conditional blocks
+* Preprocessor definitions
+
+These constructs will be compiled into the `PackageDescription` and inlined if
+you use `cabal-edit`. This makes `cabal-edit` useful for small beginning
+projects and ones that don't use advanced Cabal features.
+
 License
 -------
 
