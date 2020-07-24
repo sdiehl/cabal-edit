@@ -2,4 +2,8 @@
 , compiler ? "ghc865"
 }:
 
-pkgs.haskell.packages."${compiler}".callCabal2nix "cabal-edit" ./. {}
+let
+  src = pkgs.nix-gitignore.gitignoreSource [ "/.git/" "/*.nix" ] ./.;
+
+in
+  pkgs.haskell.packages."${compiler}".callCabal2nix "cabal-edit" src {}
