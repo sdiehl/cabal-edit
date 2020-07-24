@@ -1,3 +1,5 @@
-{ nixpkgs ? import ./nixpkgs.nix {}, compiler ? "ghc864" }:
+{ pkgs ? import <nixpkgs> {}
+, compiler ? "ghc864"
+}:
 
-(import ./default.nix { inherit nixpkgs compiler; }).env
+(import ./default.nix { inherit pkgs compiler; }).env

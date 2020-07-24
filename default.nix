@@ -1,3 +1,5 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> {}
+, compiler ? "ghc864"
+}:
 
-pkgs.haskellPackages.callCabal2nix "cabal-edit" ./. { }
+pkgs.haskell.packages."${compiler}".callCabal2nix "cabal-edit" ./. {}
