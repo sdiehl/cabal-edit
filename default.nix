@@ -1,4 +1,9 @@
+{ pkgs ? import ./nixpkgs.nix {}
+, compiler ? "ghc865"
+}:
+
 let
-  pkgs = import <nixpkgs> { };
+  src = pkgs.nix-gitignore.gitignoreSource [ "/.git/" "/*.nix" ] ./.;
+
 in
-  pkgs.haskellPackages.callPackage ./default.nix { }
+  pkgs.haskell.packages."${compiler}".callCabal2nix "cabal-edit" src {}
