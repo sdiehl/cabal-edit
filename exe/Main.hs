@@ -11,16 +11,16 @@ import qualified Data.ByteString as BS
 import Data.List
 import Data.Map as Map
 import Data.Maybe
-import Data.Set as Set
 import Data.Store
 import Data.Time.Clock
+import Distribution.Compat.NonEmptySet as Set
 import qualified Distribution.Hackage.DB.Parsed as P
 import Distribution.Hackage.DB.Path
 import qualified Distribution.Hackage.DB.Unparsed as U
-import Distribution.PackageDescription.Parsec
 import Distribution.PackageDescription.PrettyPrint
 import Distribution.Parsec
 import Distribution.Pretty
+import Distribution.Simple.PackageDescription
 import Distribution.Types.BuildInfo
 import Distribution.Types.CondTree
 import Distribution.Types.Dependency
@@ -30,6 +30,7 @@ import Distribution.Types.LibraryName
 import Distribution.Types.PackageDescription
 import Distribution.Types.PackageName
 import Distribution.Types.Version
+import Distribution.Types.VersionRange
 import Distribution.Types.VersionRange.Internal
 import Distribution.Utils.ShortText
 import Distribution.Verbosity
@@ -143,22 +144,30 @@ add ::
   IO GenericPackageDescription
 add dep (fname, cabalFile) =
   case depVerRange dep of
-    AnyVersion -> do
-      let pk = depPkgName dep
-      verMap <- cacheDeps
-      -- Lookup the latest version and use the majorBound of it.
-      ver <- case Map.lookup pk verMap of
-        Nothing -> die $ "No such package named: " ++ show pk
-        Just vers -> pure (maximum vers)
-      let dependency = Dependency pk (majorBoundVersion (majorBound ver)) (Set.singleton defaultLibName)
-      putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
-      pure $ modifyDep cabalFile pk dependency
     ThisVersion givenVersion -> addVer ThisVersion givenVersion (fname, cabalFile) dep
     LaterVersion givenVersion -> addVer LaterVersion givenVersion (fname, cabalFile) dep
     OrLaterVersion givenVersion -> addVer OrLaterVersion givenVersion (fname, cabalFile) dep
     EarlierVersion givenVersion -> addVer EarlierVersion givenVersion (fname, cabalFile) dep
-    WildcardVersion givenVersion -> addVer WildcardVersion givenVersion (fname, cabalFile) dep
-    givenVersion -> die $ "Given version is not on available on Hackage." ++ show givenVersion
+    MajorBoundVersion givenVersion -> addVer MajorBoundVersion givenVersion (fname, cabalFile) dep
+    givenVersion ->
+      if givenVersion == anyVersion
+        then handleAnyVersion dep (fname, cabalFile)
+        else die $ "Given version is not on available on Hackage." ++ show givenVersion
+
+handleAnyVersion ::
+  Dependency ->
+  (FilePath, GenericPackageDescription) ->
+  IO GenericPackageDescription
+handleAnyVersion dep (fname, cabalFile) = do
+  let pk = depPkgName dep
+  verMap <- cacheDeps
+  -- Lookup the latest version and use the majorBound of it.
+  ver <- case Map.lookup pk verMap of
+    Nothing -> die $ "No such package named: " ++ show pk
+    Just vers -> pure (maximum vers)
+  let dependency = Dependency pk (majorBoundVersion (majorBound ver)) (Set.singleton defaultLibName)
+  putStrLn $ "Adding latest dependency: " ++ prettyShow dependency ++ " to " ++ takeFileName fname
+  pure $ modifyDep cabalFile pk dependency
 
 upgrade ::
   PackageName ->
@@ -185,12 +194,9 @@ upgrade pk latest (_, cabalFile) =
           let ver' = intersectVersionRanges (orLaterVersion prev) (orEarlierVersion latest)
           let dep' = Dependency (depPkgName dep) ver' (depLibraries dep)
           pure $ modifyDep cabalFile pk dep'
-        AnyVersion -> replaceVersion dep
-        WildcardVersion _ -> replaceVersion dep
         ThisVersion _ -> replaceVersion dep
         OrEarlierVersion _ -> replaceVersion dep
         EarlierVersion _ -> replaceVersion dep
-        VersionRangeParens _ -> replaceVersion dep
         IntersectVersionRanges lower _ -> do
           if extractLower lower < latest
             then do
@@ -293,7 +299,6 @@ cacheDb = do
 lint :: Bool -> (PackageName, Dependency, Version) -> IO ()
 lint fix (pk, dep, latest) =
   case depVerRange dep of
-    AnyVersion -> putStrLn $ prettyShow pk ++ " : " ++ "Wildcard version detected. Instead use explicit version bounds."
     ThisVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "Explicit version detected. Considering allowing a range."
     LaterVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "No upper bound detected. Add an upper bound."
     OrLaterVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "No upper bound detected. Add an upper bound."
@@ -305,10 +310,6 @@ lint fix (pk, dep, latest) =
       case versionNumbers ver of
         (1 : _) -> pure ()
         _ -> putStrLn $ prettyShow pk ++ " : " ++ "Upper bound only for package with >1.0 admits all previous versions. Add a lower bound to major version."
-    WildcardVersion ver ->
-      if Data.List.length (versionNumbers ver) > 2
-        then putStrLn $ prettyShow pk ++ " : " ++ "Wildcard on minor version, consider rewriting wildcard to major version n.x"
-        else pure ()
     MajorBoundVersion ver ->
       if majorUpperBound ver == majorUpperBound latest
         then pure ()
@@ -321,7 +322,6 @@ lint fix (pk, dep, latest) =
         (LaterVersion lower, OrEarlierVersion upper) -> lintRange pk lower upper latest
         (OrLaterVersion lower, OrEarlierVersion upper) -> lintRange pk lower upper latest
         _ -> putStrLn $ prettyShow pk ++ " : " ++ "Upper and lower bounds for range are inconsistent."
-    VersionRangeParens _ -> pure ()
 
 lintRange :: PackageName -> Version -> Version -> Version -> IO ()
 lintRange pk lower upper latest
@@ -366,7 +366,7 @@ addSingle packName = do
     Just dep -> pure dep
   (fname, cabalFile) <- getCabal
   cabalFile' <- add dep (fname, cabalFile)
-  --hasLib cabalFile
+  -- hasLib cabalFile
   writeGenericPackageDescription fname cabalFile'
   formatCabalFile fname
 
@@ -380,13 +380,13 @@ upgradeCmd packName = do
     Nothing -> die $ "No such named: " ++ show pk
     Just vers -> pure (maximum vers)
   (fname, cabalFile) <- getCabal
-  --hasLib cabalFile
+  -- hasLib cabalFile
   case lookupDep cabalFile pk of
     Nothing -> die $ "No current dependency on: " ++ show pk
     Just _ -> do
       let ver' = majorUpperBound latestVer
       putStrLn $ "Upgrading bounds for " ++ prettyShow pk ++ " to " ++ prettyShow ver'
-      --traverse (putStrLn . prettyShow) (depMap cabalFile)
+      -- traverse (putStrLn . prettyShow) (depMap cabalFile)
       cabalFile' <- upgrade pk ver' (fname, cabalFile)
       writeGenericPackageDescription fname cabalFile'
   formatCabalFile fname
