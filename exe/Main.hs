@@ -1,4 +1,6 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main
@@ -133,7 +135,7 @@ depMap pkg = Map.fromList [(depPkgName dep, dep) | dep <- getDeps pkg]
 -------------------------------------------------------------------------------
 
 majorBound :: Version -> Version
-majorBound = alterVersion $ \numbers -> case numbers of
+majorBound = alterVersion $ \case
   [] -> [0, 1]
   [m1] -> [m1]
   (m1 : m2 : _) -> [m1, m2]
@@ -297,7 +299,7 @@ cacheDb = do
 -------------------------------------------------------------------------------
 
 lint :: Bool -> (PackageName, Dependency, Version) -> IO ()
-lint fix (pk, dep, latest) =
+lint _fix (pk, dep, latest) =
   case depVerRange dep of
     ThisVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "Explicit version detected. Considering allowing a range."
     LaterVersion _ -> putStrLn $ prettyShow pk ++ " : " ++ "No upper bound detected. Add an upper bound."
@@ -317,10 +319,10 @@ lint fix (pk, dep, latest) =
     UnionVersionRanges _ _ -> pure ()
     IntersectVersionRanges lower upper ->
       case (lower, upper) of
-        (LaterVersion lower, EarlierVersion upper) -> lintRange pk lower upper latest
-        (OrLaterVersion lower, EarlierVersion upper) -> lintRange pk lower upper latest
-        (LaterVersion lower, OrEarlierVersion upper) -> lintRange pk lower upper latest
-        (OrLaterVersion lower, OrEarlierVersion upper) -> lintRange pk lower upper latest
+        (LaterVersion l, EarlierVersion u) -> lintRange pk l u latest
+        (OrLaterVersion l, EarlierVersion u) -> lintRange pk l u latest
+        (LaterVersion l, OrEarlierVersion u) -> lintRange pk l u latest
+        (OrLaterVersion l, OrEarlierVersion u) -> lintRange pk l u latest
         _ -> putStrLn $ prettyShow pk ++ " : " ++ "Upper and lower bounds for range are inconsistent."
 
 lintRange :: PackageName -> Version -> Version -> Version -> IO ()
@@ -402,15 +404,15 @@ upgradeAllCmd = do
       Just vers -> pure (maximum vers)
     let ver' = majorUpperBound latestVer
     putStrLn $ "Upgrading bounds for " ++ prettyShow pk ++ " to " ++ prettyShow ver'
-    cabalFile <- readGenericPackageDescription normal fname
-    cabalFile' <- upgrade pk ver' (fname, cabalFile)
-    writeGenericPackageDescription fname cabalFile'
+    cabalFile' <- readGenericPackageDescription normal fname
+    cabalFile'' <- upgrade pk ver' (fname, cabalFile')
+    writeGenericPackageDescription fname cabalFile''
   formatCabalFile fname
 
 lintCmd :: IO ()
 lintCmd = do
   verMap <- cacheDeps
-  (fname, cabalFile) <- getCabal
+  (_, cabalFile) <- getCabal
   let pks = Map.toList $ depMap cabalFile
   forM_ pks $ \(pk, dep) -> do
     latestVer <- case Map.lookup pk verMap of
